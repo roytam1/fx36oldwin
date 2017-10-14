@@ -63,11 +63,11 @@
 #endif
 
 #if defined NANOJIT_64BIT
-    #define IF_64BIT(...) __VA_ARGS__
-    #define UNLESS_64BIT(...)
+    #define IF_64BIT(x) x
+    #define UNLESS_64BIT(x)
 #else
-    #define IF_64BIT(...)
-    #define UNLESS_64BIT(...) __VA_ARGS__
+    #define IF_64BIT(x)
+    #define UNLESS_64BIT(x) x
 #endif
 
 // Embed no-op macros that let Valgrind work with the JIT.
@@ -153,10 +153,10 @@ namespace nanojit
     #include <stdio.h>
     #define verbose_outputf            if (_logc->lcbits & LC_Assembly) \
                                         Assembler::outputf
-    #define verbose_only(...)        __VA_ARGS__
+    #define verbose_only(x)        x
 #else
     #define verbose_outputf
-    #define verbose_only(...)
+    #define verbose_only(x)
 #endif /*NJ_VERBOSE*/
 
 #ifdef _DEBUG

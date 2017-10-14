@@ -166,11 +166,13 @@
 
 #include "nsWindowGfx.h"
 
+#define WINCE 1
+
+#include "nsNativeDragTarget.h"
 #if !defined(WINCE)
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
 #include "nsKeyboardLayout.h"
-#include "nsNativeDragTarget.h"
 #include <mmsystem.h> // needed for WIN32_LEAN_AND_MEAN
 #include <zmouse.h>
 #include <pbt.h>
@@ -284,6 +286,20 @@ PRUint32        nsWindow::sOOPPPluginFocusEvent   =
                   RegisterWindowMessageW(kOOPPPluginFocusEventId);
 #endif
 
+// When we build we are currently (11/27/01) setting the WINVER to 0x0400
+// Which means we do not compile in the system resource for the HAND cursor
+// this enables us still define the resource and if it isn't there then we will
+// get our own hand cursor.
+// 32649 is the resource number as defined by WINUSER.H for this cursor
+// if the resource is defined by the build env. then it will find it when asked
+// if not, then we get our own cursor.
+#ifndef IDC_HAND
+#define IDC_HAND MAKEINTRESOURCE(32649)
+#endif
+
+#ifndef WM_IME_REQUEST
+#define WM_IME_REQUEST 0x0288
+#endif
 /**************************************************************
  *
  * SECTION: globals variables
@@ -421,7 +437,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   nsTextStore::Initialize();
 #endif
 
-#if !defined(WINCE)
+#if 1// !defined(WINCE)
   if (SUCCEEDED(::OleInitialize(NULL)))
     sIsOleInitialized = TRUE;
   NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
@@ -431,7 +447,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   InitHeapDump();
 #endif
 
-#if !defined(WINCE)
+#if 1// !defined(WINCE)
   InitTrackPointHack();
 #endif
   } // !sInstanceCount
@@ -461,7 +477,7 @@ nsWindow::~nsWindow()
     nsTextStore::Terminate();
 #endif
 
-#if !defined(WINCE)
+#if 1// !defined(WINCE)
     NS_IF_RELEASE(sCursorImgContainer);
     if (sIsOleInitialized) {
       ::OleFlushClipboard();
@@ -495,7 +511,7 @@ PRInt32 nsWindow::GetHeight(PRInt32 aProposedHeight)
 {
   PRInt32 extra = 0;
 
-  #if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
+  #if 0//defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
   DWORD style = WindowStyle();
   if ((style & WS_SYSMENU) && (style & WS_POPUP)) {
     extra = GetSystemMetrics(SM_CYCAPTION);
@@ -797,7 +813,7 @@ LPCWSTR nsWindow::WindowPopupClass()
  **************************************************************/
 
 // Return nsWindow styles
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
+#if 1//!defined(WINCE) // implemented in nsWindowCE.cpp
 DWORD nsWindow::WindowStyle()
 {
   DWORD style;
@@ -883,7 +899,7 @@ DWORD nsWindow::WindowExStyle()
 
     case eWindowType_popup:
       return
-#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
+#if 0 //defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
         WS_EX_NOACTIVATE |
 #endif
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
@@ -1128,7 +1144,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
 #endif
           default:
             if (CanTakeFocus()) {
-#ifdef WINCE
+#if 0//def WINCE
               ::SetForegroundWindow(mWnd);
 #endif
               ::ShowWindow(mWnd, SW_SHOWNORMAL);
@@ -1152,7 +1168,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
           flags |= SWP_NOZORDER;
 
         if (mWindowType == eWindowType_popup) {
-#ifndef WINCE
+#if 1//ndef WINCE
           // ensure popups are the topmost of the TOPMOST
           // layer. Remember not to set the SWP_NOZORDER
           // flag as that might allow the taskbar to overlap
@@ -1163,7 +1179,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
           HWND owner = ::GetWindow(mWnd, GW_OWNER);
           ::SetWindowPos(mWnd, owner ? 0 : HWND_TOPMOST, 0, 0, 0, 0, flags);
         } else {
-#ifndef WINCE
+#if 1//ndef WINCE
           if (mWindowType == eWindowType_dialog && !CanTakeFocus())
             flags |= SWP_NOACTIVATE;
 #endif
@@ -1325,7 +1341,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
   if (mWnd) {
     UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE;
 
-#ifndef WINCE
+#if 1//ndef WINCE
     if (!aRepaint) {
       flags |= SWP_NOREDRAW;
     }
@@ -1361,7 +1377,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
 
   if (mWnd) {
     UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE;
-#ifndef WINCE
+#if 1//ndef WINCE
     if (!aRepaint) {
       flags |= SWP_NOREDRAW;
     }
@@ -1419,7 +1435,7 @@ NS_METHOD nsWindow::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
 }
 
 // Maximize, minimize or restore the window.
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
+#if 1//!defined(WINCE) // implemented in nsWindowCE.cpp
 NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
 
   nsresult rv;
@@ -1715,7 +1731,7 @@ NS_METHOD nsWindow::SetBackgroundColor(const nscolor &aColor)
     ::DeleteObject(mBrush);
 
   mBrush = ::CreateSolidBrush(NSRGB_2_COLOREF(mBackground));
-#ifndef WINCE
+#if 1//ndef WINCE
   if (mWnd != NULL) {
     ::SetClassLongPtrW(mWnd, GCLP_HBRBACKGROUND, (LONG_PTR)mBrush);
   }
@@ -2464,7 +2480,7 @@ NS_METHOD nsWindow::SetTitle(const nsAString& aTitle)
 
 NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec) 
 {
-#ifndef WINCE
+#if 1//ndef WINCE
   // Assume the given string is a local identifier for an icon file.
 
   nsCOMPtr<nsILocalFile> iconFile;
@@ -2544,7 +2560,7 @@ nsIntPoint nsWindow::WidgetToScreenOffset()
  *
  **************************************************************/
 
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
+#if 1//!defined(WINCE) // implemented in nsWindowCE.cpp
 NS_METHOD nsWindow::EnableDragDrop(PRBool aEnable)
 {
   nsresult rv = NS_ERROR_FAILURE;
@@ -2627,7 +2643,7 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
     sRollupWidget = this;
     NS_ADDREF(this);
 
-#ifndef WINCE
+#if 1//ndef WINCE
     if (!sMsgFilterHook && !sCallProcHook && !sCallMouseHook) {
       RegisterSpecialDropdownHooks();
     }
@@ -2638,7 +2654,7 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
     NS_IF_RELEASE(sRollupListener);
     NS_IF_RELEASE(sRollupWidget);
     
-#ifndef WINCE
+#if 1//ndef WINCE
     sProcessHook = PR_FALSE;
     UnregisterSpecialDropdownHooks();
 #endif
@@ -2760,7 +2776,7 @@ gfxASurface *nsWindow::GetThebesSurface()
 NS_IMETHODIMP
 nsWindow::OnDefaultButtonLoaded(const nsIntRect &aButtonRect)
 {
-#ifdef WINCE
+#if 0//def WINCE
   return NS_ERROR_NOT_IMPLEMENTED;
 #else
   if (aButtonRect.IsEmpty())
@@ -2940,7 +2956,7 @@ void nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
     event.refPoint.y = aPoint->y;
   }
 
-#ifndef WINCE
+#if 1//ndef WINCE
   event.time = ::GetMessageTime();
 #else
   event.time = PR_Now() / 1000;
@@ -3152,7 +3168,7 @@ void nsWindow::DispatchPendingEvents()
     // Dispatch pending paints for all topWnd's descendant windows.
     // Note: EnumChildWindows enumerates all descendant windows not just
     // it's children.
-#if !defined(WINCE)
+#if 1//!defined(WINCE)
     ::EnumChildWindows(topWnd, nsWindow::DispatchStarvedPaints, NULL);
 #else
     nsWindowCE::EnumChildWindows(topWnd, nsWindow::DispatchStarvedPaints, NULL);
@@ -3249,7 +3265,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
 
   // Doubleclicks are used to set the click count, then changed to mousedowns
   // We're going to time double-clicks from mouse *up* to next mouse *down*
-#ifndef WINCE
+#if 1//ndef WINCE
   LONG curMsgTime = ::GetMessageTime();
 #else
   LONG curMsgTime = PR_Now() / 1000;
@@ -3863,7 +3879,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-#ifndef WINCE
+#if 1//ndef WINCE
     // WM_QUERYENDSESSION must be handled by all windows.
     // Otherwise Windows thinks the window can just be killed at will.
     case WM_QUERYENDSESSION:
@@ -3887,7 +3903,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 #endif
 
-#ifndef WINCE
+#if 1//ndef WINCE
     case WM_ENDSESSION:
 #endif
     case MOZ_WM_APP_QUIT:
@@ -3913,7 +3929,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = PR_TRUE;
       break;
 
-#ifndef WINCE
+#if 1//ndef WINCE
     case WM_DISPLAYCHANGE:
       DispatchStandardEvent(NS_DISPLAYCHANGED);
       break;
@@ -4029,7 +4045,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = PR_TRUE;
       break;
 
-#ifndef WINCE
+#if 1//ndef WINCE
     case WM_PRINTCLIENT:
       result = OnPaint((HDC) wParam);
       break;
@@ -4138,7 +4154,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-#ifndef WINCE
+#if 1//ndef WINCE
     case WM_MOUSELEAVE:
     {
       // We need to check mouse button states and put them in for
@@ -4351,7 +4367,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #endif
       break;
       
-#ifndef WINCE
+#if 1//ndef WINCE
     case WM_MOUSEACTIVATE:
       if (mWindowType == eWindowType_popup) {
         // a popup with a parent owner should not be activated when clicked
@@ -4481,7 +4497,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
 #endif
 
-#ifndef WINCE
+#if 1//ndef WINCE
     case WM_SYSCOMMAND:
       // prevent Windows from trimming the working set. bug 76831
       if (!sTrimOnMinimize && wParam == SC_MINIMIZE) {
@@ -4492,7 +4508,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #endif
 
 
-#ifdef WINCE
+#if 0//def WINCE
   case WM_HIBERNATE:        
     nsMemory::HeapMinimize(PR_TRUE);
     break;
@@ -4594,7 +4610,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-#ifndef WINCE
+#if 1//ndef WINCE
+#ifndef EM_CANPASTE
+#define EM_CANPASTE	(WM_USER+50)
+#define EM_REDO	(WM_USER+84)
+#define EM_CANREDO	(WM_USER+85)
+#endif
     case EM_UNDO:
     {
       nsContentCommandEvent command(PR_TRUE, NS_CONTENT_COMMAND_UNDO, this);
@@ -4739,7 +4760,7 @@ BOOL CALLBACK nsWindow::BroadcastMsg(HWND aTopWindow, LPARAM aMsg)
 {
   // Iterate each of aTopWindows child windows sending the aMsg
   // to each of them.
-#if !defined(WINCE)
+#if 1//!defined(WINCE)
   ::EnumChildWindows(aTopWindow, nsWindow::BroadcastMsgToChildren, aMsg);
 #else
   nsWindowCE::EnumChildWindows(aTopWindow, nsWindow::BroadcastMsgToChildren, aMsg);
@@ -4762,7 +4783,7 @@ void nsWindow::GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
       // System color changes are posted to top-level windows only.
       // The NS_SYSCOLORCHANGE must be dispatched to all child
       // windows as well.
-#if !defined(WINCE)
+#if 1//!defined(WINCE)
      ::EnumThreadWindows(GetCurrentThreadId(), nsWindow::BroadcastMsg, msg);
 #endif
     break;
@@ -4873,7 +4894,7 @@ LRESULT nsWindow::ProcessKeyDownMessage(const MSG &aMsg,
     result = OnKeyDown(aMsg, modKeyState, aEventDispatched, nsnull);
   }
 
-#ifndef WINCE
+#if 1//ndef WINCE
   if (aMsg.wParam == VK_MENU ||
       (aMsg.wParam == VK_F10 && !modKeyState.mIsShiftDown)) {
     // We need to let Windows handle this keypress,
@@ -4993,7 +5014,7 @@ BOOL nsWindow::OnInputLangChange(HKL aHKL)
   return PR_FALSE;   // always pass to child window
 }
 
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
+#if 1//!defined(WINCE) // implemented in nsWindowCE.cpp
 void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
 {
   if (wp == nsnull)
@@ -5164,11 +5185,11 @@ void nsWindow::ActivateOtherWindowHelper(HWND aWnd)
 
   // Play the minimize sound while we're here, since that is also
   // forgotten when we use SW_SHOWMINIMIZED.
-  ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
+//  ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
 }
 #endif // !defined(WINCE)
 
-#if !defined(WINCE)
+#if 1//!defined(WINCE)
 void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
 {
   // enforce local z-order rules
@@ -5429,7 +5450,7 @@ StringCaseInsensitiveEquals(const PRUnichar* aChars1, const PRUint32 aNumChars1,
 
 UINT nsWindow::MapFromNativeToDOM(UINT aNativeKeyCode)
 {
-#ifndef WINCE
+#if 1//ndef WINCE
   switch (aNativeKeyCode) {
     case VK_OEM_1:     return NS_VK_SEMICOLON;     // 0xBA, For the US standard keyboard, the ';:' key
     case VK_OEM_PLUS:  return NS_VK_ADD;           // 0xBB, For any country/region, the '+' key
@@ -5821,6 +5842,7 @@ LRESULT nsWindow::OnCharRaw(UINT charCode, UINT aScanCode,
     }
   }
 
+#ifndef WINCE
   // Keep the characters unshifted for shortcuts and accesskeys and make sure
   // that numbers are always passed as such (among others: bugs 50255 and 351310)
   if (uniChar && (aModKeyState.mIsControlDown || aModKeyState.mIsAltDown)) {
@@ -5835,6 +5857,7 @@ LRESULT nsWindow::OnCharRaw(UINT charCode, UINT aScanCode,
     if ((INT)unshiftedCharCode > 0)
       uniChar = unshiftedCharCode;
   }
+#endif
 
   // Fix for bug 285161 (and 295095) which was caused by the initial fix for bug 178110.
   // When pressing (alt|ctrl)+char, the char must be lowercase unless shift is
@@ -5874,7 +5897,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
     NS_ASSERTION(w->GetParent() == this,
                  "Configured widget is not a child");
-#ifdef WINCE
+#if 0//def WINCE
     // MSDN says we should do on WinCE this before moving or resizing the window
     // See http://msdn.microsoft.com/en-us/library/aa930600.aspx
     // We put the region back just below, anyway.
@@ -6080,7 +6103,7 @@ PRBool nsWindow::OnResize(nsIntRect &aWindowRect)
   return PR_FALSE;
 }
 
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
+#if 1//!defined(WINCE) // implemented in nsWindowCE.cpp
 PRBool nsWindow::OnHotKey(WPARAM wParam, LPARAM lParam)
 {
   return PR_TRUE;
@@ -6650,7 +6673,7 @@ nsresult nsWindow::UpdateTranslucentWindow()
  **************************************************************
  **************************************************************/
 
-#ifndef WINCE
+#if 1//ndef WINCE
 // Schedules a timer for a window, so we can rollup after processing the hook event
 void nsWindow::ScheduleHookTimer(HWND aWnd, UINT aMsgId)
 {
@@ -6871,7 +6894,7 @@ nsWindow::EventIsInsideWindow(UINT Msg, nsWindow* aWindow)
 {
   RECT r;
 
-#ifndef WINCE
+#if 1//ndef WINCE
   if (Msg == WM_ACTIVATEAPP)
     // don't care about activation/deactivation
     return PR_FALSE;
@@ -6902,7 +6925,7 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
     if (inMsg == WM_LBUTTONDOWN || inMsg == WM_RBUTTONDOWN || inMsg == WM_MBUTTONDOWN ||
         inMsg == WM_MOUSEWHEEL || inMsg == WM_MOUSEHWHEEL || inMsg == WM_ACTIVATE ||
         (inMsg == WM_KILLFOCUS && IsDifferentThreadWindow((HWND)inWParam))
-#ifndef WINCE
+#if 1//ndef WINCE
         ||
         inMsg == WM_NCRBUTTONDOWN ||
         inMsg == WM_MOVING ||
@@ -6951,7 +6974,7 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
         } // if rollup listener knows about menus
       }
 
-#ifndef WINCE
+#if 1//ndef WINCE
       if (inMsg == WM_MOUSEACTIVATE && popupsToRollup == PR_UINT32_MAX) {
         // Prevent the click inside the popup from causing a change in window
         // activation. Since the popup is shown non-activated, we need to eat
@@ -7000,7 +7023,7 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
           *outResult = TRUE;
           return TRUE;
         }
-#ifndef WINCE
+#if 1//ndef WINCE
         // if we are only rolling up some popups, don't activate and don't let
         // the event go through. This prevents clicks menus higher in the
         // chain from opening when a context menu is open
@@ -7037,7 +7060,7 @@ nsModifierKeyState::nsModifierKeyState()
 
 PRInt32 nsWindow::GetWindowsVersion()
 {
-#ifdef WINCE
+#if 0//def WINCE
   return 0x500;
 #else
   static PRInt32 version = 0;
@@ -7107,7 +7130,7 @@ HWND nsWindow::GetTopLevelHWND(HWND aWnd, PRBool aStopOnDialogOrPopup)
 
     upWnd = ::GetParent(curWnd); // Parent or owner (if has no parent)
 
-#ifdef WINCE
+#if 0//def WINCE
     // For dialog windows, we want just the parent, not the owner.
     // For other/popup windows, we want to find the first owner/parent
     // that's a dialog and/or has an owner.
@@ -7156,7 +7179,7 @@ PRBool nsWindow::CanTakeFocus()
   return PR_FALSE;
 }
 
-#if !defined(WINCE)
+#if 1//!defined(WINCE)
 void nsWindow::InitTrackPointHack()
 {
   // Init Trackpoint Hack

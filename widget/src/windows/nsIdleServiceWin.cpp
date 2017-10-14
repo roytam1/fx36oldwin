@@ -42,7 +42,7 @@
 #include <windows.h>
 
 
-#ifdef WINCE
+#if 1//def WINCE
 // The last user input event time in microseconds. If there are any pending
 // native toolkit input events it returns the current time. The value is
 // compatible with PR_IntervalToMicroseconds(PR_IntervalNow()).
@@ -56,7 +56,7 @@ NS_IMPL_ISUPPORTS1(nsIdleServiceWin, nsIIdleService)
 NS_IMETHODIMP
 nsIdleServiceWin::GetIdleTime(PRUint32 *aTimeDiff)
 {
-#ifndef WINCE
+#if 0//ndef WINCE
     LASTINPUTINFO inputInfo;
     inputInfo.cbSize = sizeof(inputInfo);
     if (!::GetLastInputInfo(&inputInfo))

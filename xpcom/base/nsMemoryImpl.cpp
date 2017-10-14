@@ -54,7 +54,16 @@
 #include "nsString.h"
 
 #if defined(XP_WIN)
+#undef WINVER
+#define WINVER 0x0400
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0400
+
 #include <windows.h>
+
+/* Typedef for dynamic lookup of GlobalMemoryStatusEx(). */
+typedef BOOL (WINAPI *GlobalMemoryStatusExFn)(MEMORYSTATUSEX *);
+
 #endif
 
 #if defined(MOZ_PLATFORM_MAEMO)
@@ -129,11 +138,24 @@ nsMemoryImpl::IsLowMemory(PRBool *result)
     // Bug 525323 - GlobalMemoryStatus kills perf on WinCE.
     *result = PR_FALSE;
 #elif defined(XP_WIN)
-    MEMORYSTATUSEX stat;
-    stat.dwLength = sizeof stat;
-    GlobalMemoryStatusEx(&stat);
-    *result = (stat.ullAvailPageFile < kRequiredMemory) &&
-        ((float)stat.ullAvailPageFile / stat.ullTotalPageFile) < 0.1;
+    /* Try to use the newer GlobalMemoryStatusEx API for Windows 2000+. */
+    GlobalMemoryStatusExFn globalMemory = (GlobalMemoryStatusExFn) NULL;
+    HMODULE module = GetModuleHandle("kernel32.dll");
+    globalMemory = (GlobalMemoryStatusExFn)GetProcAddress(module, "GlobalMemoryStatusEx");
+
+    if (globalMemory) {
+        MEMORYSTATUSEX stat;
+        stat.dwLength = sizeof stat;
+        globalMemory(&stat);
+        *result = (stat.ullAvailPageFile < kRequiredMemory) &&
+            ((float)stat.ullAvailPageFile / stat.ullTotalPageFile) < 0.1;
+    } else {
+        MEMORYSTATUS stat;
+        stat.dwLength = sizeof stat;
+        GlobalMemoryStatus(&stat);
+        *result = (stat.dwAvailPageFile < kRequiredMemory) &&
+            ((float)stat.dwAvailPageFile / stat.dwTotalPageFile) < 0.1;
+    }
 #elif defined(MOZ_PLATFORM_MAEMO)
     static int osso_highmark_fd = -1;
     if (osso_highmark_fd == -1) {

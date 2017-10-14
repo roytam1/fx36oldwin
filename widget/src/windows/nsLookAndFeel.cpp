@@ -45,13 +45,9 @@
 #include <shellapi.h>
 #include "nsWindow.h"
 
-#ifndef WINCE
+#if 0//ndef WINCE
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
-
-typedef UINT (CALLBACK *SHAppBarMessagePtr)(DWORD, PAPPBARDATA);
-SHAppBarMessagePtr gSHAppBarMessage = NULL;
-static HINSTANCE gShell32DLLInst = NULL;
 
 static nsresult GetColorFromTheme(nsUXThemeClass cls,
                            PRInt32 aPart,
@@ -68,6 +64,13 @@ static nsresult GetColorFromTheme(nsUXThemeClass cls,
   }
   return NS_ERROR_FAILURE;
 }
+#else
+#ifndef WS_EX_LAYOUTRTL
+#define WS_EX_LAYOUTRTL 0x00400000
+#endif
+typedef UINT (CALLBACK *SHAppBarMessagePtr)(DWORD, PAPPBARDATA);
+SHAppBarMessagePtr gSHAppBarMessage = NULL;
+static HINSTANCE gShell32DLLInst = NULL;
 #endif
 
 static PRInt32 GetSystemParam(long flag, PRInt32 def)
@@ -205,7 +208,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = COLOR_HIGHLIGHT;
       break;
     case eColor__moz_menubarhovertext:
-#ifndef WINCE
+#if 0//ndef WINCE
       if (!nsUXThemeData::sIsVistaOrLater || !nsUXThemeData::isAppThemed())
       {
         idx = nsUXThemeData::sFlatMenus ?
@@ -216,7 +219,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 #endif
       // Fall through
     case eColor__moz_menuhovertext:
-#ifndef WINCE
+#if 0//ndef WINCE
       if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater)
       {
         res = ::GetColorFromTheme(eUXMenu,
@@ -294,7 +297,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = COLOR_3DFACE;
       break;
     case eColor__moz_win_mediatext:
-#ifndef WINCE
+#if 0//ndef WINCE
       if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater) {
         res = ::GetColorFromTheme(eUXMediaToolbar,
                                   TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
@@ -306,7 +309,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = COLOR_WINDOWTEXT;
       break;
     case eColor__moz_win_communicationstext:
-#ifndef WINCE
+#if 0//ndef WINCE
       if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater)
       {
         res = ::GetColorFromTheme(eUXCommunicationsToolbar,
@@ -329,7 +332,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = COLOR_3DDKSHADOW;
       break;
     case eColor__moz_nativehyperlinktext:
-#ifndef WINCE
+#if 0//ndef WINCE
       idx = COLOR_HOTLIGHT;
 #else
       aColor = NS_RGB(0, 0, 0xee);
@@ -487,7 +490,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         aMetric = 3;
         break;
     case eMetric_WindowsClassic:
-#ifndef WINCE
+#if 0//ndef WINCE
         aMetric = !nsUXThemeData::IsAppThemed();
 #else
         aMetric = 0;
@@ -495,7 +498,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         break;
     case eMetric_TouchEnabled:
         aMetric = 0;
-#ifndef WINCE
+#if 0//ndef WINCE
         PRInt32 touchCapabilities;
         touchCapabilities = ::GetSystemMetrics(SM_DIGITIZER);
         if ((touchCapabilities & NID_READY) && 
@@ -512,7 +515,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         break;
     case eMetric_WindowsDefaultTheme:
         aMetric = 0;
-#ifndef WINCE
+#if 0//ndef WINCE
         if (nsUXThemeData::getCurrentThemeName) {
           WCHAR themeFileName[MAX_PATH + 1] = {L'\0'};
           HRESULT hresult =
@@ -556,7 +559,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         res = NS_ERROR_NOT_IMPLEMENTED;
         break;
     case eMetric_DWMCompositor:
-#ifndef WINCE
+#if 0//ndef WINCE
         aMetric = nsUXThemeData::sHaveCompositor;
 #else
         aMetric = 0;
@@ -671,7 +674,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
 PRUnichar nsLookAndFeel::GetPasswordCharacter()
 {
 #define UNICODE_BLACK_CIRCLE_CHAR 0x25cf
-#ifdef WINCE
+#if 1//def WINCE
   return UNICODE_BLACK_CIRCLE_CHAR;
 #else
   static PRUnichar passwordCharacter = 0;

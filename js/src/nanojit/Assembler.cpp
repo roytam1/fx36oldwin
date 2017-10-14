@@ -190,7 +190,7 @@ namespace nanojit
 
         // CodeAlloc contract: allocations never fail
         _codeAlloc.alloc(start, end);
-        verbose_only( nBytes += (end - start) * sizeof(NIns); )
+        //verbose_only( nBytes += (end - start) * sizeof(NIns); )
         NanoAssert(uintptr_t(end) - uintptr_t(start) >= (size_t)LARGEST_UNDERRUN_PROT);
         eip = end;
     }

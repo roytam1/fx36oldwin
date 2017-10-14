@@ -4519,6 +4519,14 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #endif
 
 #ifdef XP_WIN
+
+#if WINVER < 0x0500
+#define VK_XBUTTON1     0x05    // X1 mouse button
+#define VK_XBUTTON2     0x06    // X2 mouse button
+#define MK_XBUTTON1		0x20
+#define MK_XBUTTON2		0x40
+#endif
+
   // this code supports windowless plugins
   nsPluginEvent * pPluginEvent = (nsPluginEvent *)anEvent.nativeMsg;
   // we can get synthetic events from the nsEventStateManager... these

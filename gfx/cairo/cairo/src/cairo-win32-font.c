@@ -34,11 +34,17 @@
  */
 
 #define WIN32_LEAN_AND_MEAN
-/* We require Windows 2000 features such as GetGlyphIndices */
-#if !defined(WINVER) || (WINVER < 0x0500)
+
+#undef WINVER
+#define WINVER 0x0400
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0400
+
+/* We require Windows 2000 features such as ETO_PDY */
+#if 0 && !defined(WINVER) || (WINVER < 0x0500)
 # define WINVER 0x0500
 #endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
+#if 0 && !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
 # define _WIN32_WINNT 0x0500
 #endif
 
@@ -60,6 +66,50 @@
 #endif
 
 #define CMAP_TAG 0x70616d63
+
+typedef DWORD ( WINAPI *GetFontUnicodeRangesProc )(HDC hdc, GLYPHSET *lpgs);
+typedef DWORD ( WINAPI *GetGlyphIndicesWProc ) (HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
+
+static GetFontUnicodeRangesProc GetFontUnicodeRangesPtr = NULL;
+static GetGlyphIndicesWProc GetGlyphIndicesWPtr = NULL;
+static int GetFontUnicodeRangesPtrSearched = 0;
+
+DWORD WINAPI cairo_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
+{
+    int i;
+    char asciiChar;
+    for (i = 0; i < c; i++)
+    {
+        asciiChar = (char) lpstr[i];
+        pgi[i] = asciiChar;
+    }
+    return c;
+}
+
+void cairo_SetupFPtrs()
+{
+    HMODULE fontlib;
+    if(!GetFontUnicodeRangesPtrSearched) {
+        GetFontUnicodeRangesPtrSearched = 1;
+        fontlib = LoadLibraryW(L"gdi32.dll");
+        GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
+        GetFontUnicodeRangesPtr = (GetFontUnicodeRangesProc) GetProcAddress(fontlib, "GetFontUnicodeRanges");
+        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = cairo_GetGlyphIndicesW_stub;
+    }
+}
+
+DWORD WINAPI cairo_GetGlyphIndicesW( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
+{
+    cairo_SetupFPtrs();
+    return GetGlyphIndicesWPtr(hdc, lpstr, c,  pgi, fl);
+}
+
+DWORD WINAPI cairo_GetFontUnicodeRanges(HDC hdc, GLYPHSET *lpgs)
+{
+    cairo_SetupFPtrs();
+    if(GetFontUnicodeRangesPtr) return GetFontUnicodeRangesPtr(hdc, lpgs);
+    else return 0;
+}
 
 const cairo_scaled_font_backend_t _cairo_win32_scaled_font_backend;
 
@@ -633,7 +683,7 @@ _cairo_win32_scaled_font_type1_text_to_glyphs (cairo_win32_scaled_font_t *scaled
     if (status)
 	goto FAIL2;
 
-    if (GetGlyphIndicesW (hdc, utf16, n16, glyph_indices, 0) == GDI_ERROR) {
+    if (cairo_GetGlyphIndicesW (hdc, utf16, n16, glyph_indices, 0) == GDI_ERROR) {
 	status = _cairo_win32_print_gdi_error ("_cairo_win32_scaled_font_type1_text_to_glyphs:GetGlyphIndicesW");
 	goto FAIL3;
     }
@@ -843,7 +893,7 @@ _cairo_win32_scaled_font_ucs4_to_index (void		*abstract_font,
 
     unicode[0] = ucs4;
     unicode[1] = 0;
-    if (GetGlyphIndicesW (hdc, unicode, 1, &glyph_index, 0) == GDI_ERROR) {
+    if (cairo_GetGlyphIndicesW (hdc, unicode, 1, &glyph_index, 0) == GDI_ERROR) {
 	_cairo_win32_print_gdi_error ("_cairo_win32_scaled_font_ucs4_to_index:GetGlyphIndicesW");
 	glyph_index = 0;
     }
@@ -1536,7 +1586,7 @@ _cairo_win32_scaled_font_index_to_ucs4 (void		*abstract_font,
     if (status)
 	return status;
 
-    res = GetFontUnicodeRanges(hdc, NULL);
+    res = cairo_GetFontUnicodeRanges(hdc, NULL);
     if (res == 0) {
 	status = _cairo_win32_print_gdi_error (
 	    "_cairo_win32_scaled_font_index_to_ucs4:GetFontUnicodeRanges");
@@ -1549,7 +1599,7 @@ _cairo_win32_scaled_font_index_to_ucs4 (void		*abstract_font,
 	goto exit1;
     }
 
-    res = GetFontUnicodeRanges(hdc, glyph_set);
+    res = cairo_GetFontUnicodeRanges(hdc, glyph_set);
     if (res == 0) {
 	status = _cairo_win32_print_gdi_error (
 	    "_cairo_win32_scaled_font_index_to_ucs4:GetFontUnicodeRanges");
@@ -1576,7 +1626,7 @@ _cairo_win32_scaled_font_index_to_ucs4 (void		*abstract_font,
 	    utf16[j] = glyph_set->ranges[i].wcLow + j;
 	utf16[j] = 0;
 
-	if (GetGlyphIndicesW (hdc, utf16, num_glyphs, glyph_indices, 0) == GDI_ERROR) {
+	if (cairo_GetGlyphIndicesW (hdc, utf16, num_glyphs, glyph_indices, 0) == GDI_ERROR) {
 	    status = _cairo_win32_print_gdi_error (
 		"_cairo_win32_scaled_font_index_to_ucs4:GetGlyphIndicesW");
 	    goto exit2;

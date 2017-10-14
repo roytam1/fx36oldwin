@@ -265,7 +265,7 @@ NowInit(void)
 {
     memset(&calibration, 0, sizeof(calibration));
     NowCalibrate();
-#ifdef WINCE
+#if 1 //def WINCE
     InitializeCriticalSection(&calibration.calibration_lock);
     InitializeCriticalSection(&calibration.data_lock);
 #else
@@ -285,7 +285,7 @@ PRMJ_NowShutdown()
 #define MUTEX_LOCK(m) EnterCriticalSection(m)
 #define MUTEX_TRYLOCK(m) TryEnterCriticalSection(m)
 #define MUTEX_UNLOCK(m) LeaveCriticalSection(m)
-#ifdef WINCE
+#if 1 //def WINCE
 #define MUTEX_SETSPINCOUNT(m, c)
 #else
 #define MUTEX_SETSPINCOUNT(m, c) SetCriticalSectionSpinCount((m),(c))

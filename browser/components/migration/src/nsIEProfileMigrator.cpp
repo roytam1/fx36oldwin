@@ -96,6 +96,11 @@
 #include "nsIWindowsRegKey.h"
 #include "nsISupportsPrimitives.h"
 
+#if (_WIN32_IE < 0x0400)
+// UrlHistory Guids
+DEFINE_GUID(CLSID_CUrlHistory,          0x3C374A40L, 0xBAE4, 0x11CF, 0xBF, 0x7D, 0x00, 0xAA, 0x00, 0x69, 0x46, 0xEE);
+#endif
+
 #define TRIDENTPROFILE_BUNDLE       "chrome://browser/locale/migration/migration.properties"
 
 #define REGISTRY_IE_MAIN_KEY \

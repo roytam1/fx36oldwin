@@ -198,7 +198,7 @@ dnl ========================================================
 
 if test "$COMPILE_ENVIRONMENT"; then
 
-if test "$target" != "$host"; then
+if test "$target" != "$host" -a "$host" != "i686-pc-cygwin" -a "$target" != "i586-pc-msvc"; then
     echo "cross compiling from $host to $target"
 
     _SAVE_CC="$CC"
@@ -404,13 +404,13 @@ dnl Special win32 checks
 dnl ========================================================
 case "$target" in
 *-wince)
-    WINVER=500
+    WINVER=400
     ;;
 *)
     if test -n "$GNU_CC"; then  
-        WINVER=501
+        WINVER=400
     else    
-        WINVER=500
+        WINVER=400
     fi
     ;;
 esac
@@ -559,7 +559,7 @@ case "$target" in
     AC_DEFINE_UNQUOTED(WINVER,0x$WINVER)
     AC_DEFINE_UNQUOTED(_WIN32_WINNT,0x$WINVER)
     # Require OS features provided by IE 5.0
-    AC_DEFINE_UNQUOTED(_WIN32_IE,0x0500)
+    AC_DEFINE_UNQUOTED(_WIN32_IE,0x0200)
     ;;
 esac
 
@@ -1963,7 +1963,7 @@ case "$target" in
         DSO_LDOPTS=-SUBSYSTEM:WINDOWS
         CFLAGS="$CFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
         CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
-        LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib"
+        LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib unicows.lib"
         MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
@@ -4118,6 +4118,9 @@ fi
 if test "$MOZ_MEMORY"; then
 
   dnl Don't try to run compiler tests on Windows  
+  if test "$OS_ARCH" = "msvc"; then
+    OS_ARCH=WINNT
+  fi
   if test "$OS_ARCH" = "WINNT"; then
     if test -z "$HAVE_64BIT_OS"; then
       AC_DEFINE_UNQUOTED([MOZ_MEMORY_SIZEOF_PTR_2POW], 2)

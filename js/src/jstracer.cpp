@@ -1294,12 +1294,12 @@ getLoop(JSTraceMonitor* tm, const void *ip, JSObject* globalObj, uint32 globalSh
 static VMFragment*
 getAnchor(JSTraceMonitor* tm, const void *ip, JSObject* globalObj, uint32 globalShape, uint32 argc)
 {
-    verbose_only(
+    /*verbose_only(
     uint32_t profFragID = (js_LogController.lcbits & LC_FragProfile)
                           ? (++(tm->lastFragID)) : 0;
-    )
+    )*/
     VMFragment *f = new (*tm->dataAlloc) VMFragment(ip, globalObj, globalShape, argc
-                                                    verbose_only(, profFragID));
+                                                    /*verbose_only(, profFragID)*/);
     JS_ASSERT(f);
 
     VMFragment *p = getVMFragment(tm, ip, globalObj, globalShape, argc);
@@ -2597,7 +2597,7 @@ JSTraceMonitor::flush()
     AUDIT(cacheFlushed);
 
     // recover profiling data from expiring Fragments
-    verbose_only(
+    /*verbose_only(
         for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
             for (VMFragment *f = vmfragments[i]; f; f = f->next) {
                 JS_ASSERT(f->root == f);
@@ -2605,12 +2605,12 @@ JSTraceMonitor::flush()
                     js_FragProfiling_FragFinalizer(p, this);
             }
         }
-    )
+    )*/
 
-    verbose_only(
+    /*verbose_only(
         for (Seq<Fragment*>* f = branches; f; f = f->tail)
             js_FragProfiling_FragFinalizer(f->head, this);
-    )
+    )*/
 
     dataAlloc->reset();
     codeAlloc->reset();
@@ -2627,7 +2627,7 @@ JSTraceMonitor::flush()
     assembler = new (alloc) Assembler(*codeAlloc, alloc, core, &js_LogController);
     lirbuf = new (alloc) LirBuffer(*tempAlloc);
     reLirBuf = new (alloc) LirBuffer(*reTempAlloc);
-    verbose_only( branches = NULL; )
+    //verbose_only( branches = NULL; )
 
 #ifdef DEBUG
     labels = new (alloc) LabelMap(alloc, &js_LogController);
@@ -4050,10 +4050,10 @@ TraceRecorder::createGuardRecord(VMSideExit* exit)
 JS_REQUIRES_STACK void
 TraceRecorder::guard(bool expected, LIns* cond, VMSideExit* exit)
 {
-    debug_only_printf(LC_TMRecorder,
+    /*debug_only_printf(LC_TMRecorder,
                       "    About to try emitting guard code for "
                       "SideExit=%p exitType=%s\n",
-                      (void*)exit, getExitName(exit->exitType));
+                      (void*)exit, getExitName(exit->exitType));*/
 
     GuardRecord* guardRec = createGuardRecord(exit);
 
@@ -4584,8 +4584,8 @@ TraceRecorder::closeLoop(SlotMap& slotMap, VMSideExit* exit, TypeConsensus& cons
         }
     } else {
         exit->exitType = LOOP_EXIT;
-        debug_only_printf(LC_TMTreeVis, "TREEVIS CHANGEEXIT EXIT=%p TYPE=%s\n", (void*)exit,
-                          getExitName(LOOP_EXIT));
+        /*debug_only_printf(LC_TMTreeVis, "TREEVIS CHANGEEXIT EXIT=%p TYPE=%s\n", (void*)exit,
+                          getExitName(LOOP_EXIT));*/
 
         JS_ASSERT((fragment == fragment->root) == !!loopLabel);
         if (loopLabel) {
@@ -5675,10 +5675,10 @@ AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom, j
     if (!(c = anchor->target)) {
         JSTraceMonitor *tm = &JS_TRACE_MONITOR(cx);
         Allocator& alloc = *tm->dataAlloc;
-        verbose_only(
+        /*verbose_only(
         uint32_t profFragID = (js_LogController.lcbits & LC_FragProfile)
                               ? (++(tm->lastFragID)) : 0;
-        )
+        )*/
         c = new (alloc) Fragment(cx->fp->regs->pc verbose_only(, profFragID));
         c->root = anchor->from->root;
         debug_only_printf(LC_TMTreeVis, "TREEVIS CREATEBRANCH ROOT=%p FRAG=%p PC=%p FILE=\"%s\""
@@ -5688,7 +5688,7 @@ AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom, j
                           FramePCOffset(cx->fp));
         anchor->target = c;
         c->root = f;
-        verbose_only( tm->branches = new (alloc) Seq<Fragment*>(c, tm->branches); )
+        //verbose_only( tm->branches = new (alloc) Seq<Fragment*>(c, tm->branches); )
     }
 
     /*
@@ -5885,7 +5885,7 @@ RecordLoopEdge(JSContext* cx, TraceRecorder* r, uintN& inlineCallCount)
         return AttemptToExtendTree(cx, lr, NULL, outer);
 
       default:
-        debug_only_printf(LC_TMTracer, "exit_type=%s\n", getExitName(lr->exitType));
+        //debug_only_printf(LC_TMTracer, "exit_type=%s\n", getExitName(lr->exitType));
         js_AbortRecording(cx, "Inner tree not suitable for calling");
         return false;
     }
@@ -6530,7 +6530,7 @@ LeaveTree(InterpState& state, VMSideExit* lr)
     uint64 cycles = 0;
 #endif
 
-    debug_only_printf(LC_TMTracer,
+    /*debug_only_printf(LC_TMTracer,
                       "leaving trace at %s:%u@%u, op=%s, lr=%p, exitType=%s, sp=%lld, "
                       "calldepth=%d, cycles=%llu\n",
                       fp->script->filename,
@@ -6541,7 +6541,7 @@ LeaveTree(InterpState& state, VMSideExit* lr)
                       getExitName(lr->exitType),
                       (long long int)(fp->regs->sp - StackBase(fp)),
                       calldepth,
-                      (unsigned long long int)cycles);
+                      (unsigned long long int)cycles);*/
 
     /*
      * If this trace is part of a tree, later branches might have added
@@ -7316,7 +7316,7 @@ js_InitJIT(JSTraceMonitor *tm)
     tm->reTempAlloc = new VMAllocator();
     tm->codeAlloc = new CodeAlloc();
     tm->flush();
-    verbose_only( tm->branches = NULL; )
+    //verbose_only( tm->branches = NULL; )
 
     JS_ASSERT(!tm->reservedDoublePool);
     tm->reservedDoublePoolPtr = tm->reservedDoublePool = new jsval[MAX_NATIVE_STACK_SLOTS];
@@ -7483,7 +7483,7 @@ js_PurgeScriptFragments(JSContext* cx, JSScript* script)
                 JS_ASSERT(frag->root == frag);
                 *fragp = frag->next;
                 do {
-                    verbose_only( js_FragProfiling_FragFinalizer(frag, tm); )
+                    //verbose_only( js_FragProfiling_FragFinalizer(frag, tm); )
                     TrashTree(cx, frag);
                 } while ((frag = frag->peer) != NULL);
                 continue;

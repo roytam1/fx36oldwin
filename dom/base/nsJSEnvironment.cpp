@@ -1345,7 +1345,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     context->mDefaultJSOptions = newDefaultJSOptions;
   }
 
-#ifdef JS_GC_ZEAL
+#if 0//def JS_GC_ZEAL
   PRInt32 zeal = nsContentUtils::GetIntPref(js_zeal_option_str, -1);
   if (zeal >= 0)
     ::JS_SetGCZeal(context->mContext, (PRUint8)zeal);

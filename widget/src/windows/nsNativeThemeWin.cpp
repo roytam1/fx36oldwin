@@ -115,6 +115,12 @@ GetViewportOrgEx(HDC hdc, LPPOINT lpPoint)
 }
 #endif
 
+#ifndef LAYOUT_RTL
+#define LAYOUT_RTL 1
+#endif
+typedef DWORD ( WINAPI *SetLayoutProc ) ( HDC hdc,DWORD dwLayout);
+static SetLayoutProc SetLayoutPtr = nsnull;
+
 static inline bool IsHTMLContent(nsIFrame *frame)
 {
   nsIContent* content = frame->GetContent();
@@ -125,6 +131,8 @@ nsNativeThemeWin::nsNativeThemeWin() {
   // If there is a relevant change in forms.css for windows platform,
   // static widget style variables (e.g. sButtonBorderSize) should be 
   // reinitialized here.
+    HMODULE fontlib = LoadLibraryW(L"gdi32.dll");
+    SetLayoutPtr = (SetLayoutProc) GetProcAddress(fontlib, "SetLayout");
 }
 
 nsNativeThemeWin::~nsNativeThemeWin() {
@@ -259,9 +267,9 @@ static HRESULT DrawThemeBGRTLAware(HANDLE theme, HDC hdc, int part, int state,
         newCRectPtr = &newCRect;
       }
 
-      SetLayout(hdc, LAYOUT_RTL);
+      if(SetLayoutPtr) SetLayoutPtr(hdc, LAYOUT_RTL);
       HRESULT hr = nsUXThemeData::drawThemeBG(theme, hdc, part, state, &newWRect, newCRectPtr);
-      SetLayout(hdc, 0);
+      if(SetLayoutPtr) SetLayoutPtr(hdc, 0);
 
       if (hr == S_OK)
         return hr;

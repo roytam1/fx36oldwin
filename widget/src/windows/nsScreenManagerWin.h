@@ -46,6 +46,9 @@
 
 class nsIScreen;
 
+#if WINVER < 0x0500
+typedef HANDLE HMONITOR;
+#endif
 //------------------------------------------------------------------------
 
 class ScreenListItem

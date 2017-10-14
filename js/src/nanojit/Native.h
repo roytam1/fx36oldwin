@@ -50,8 +50,8 @@
 #  define UNLESS_PEDANTIC(...)
 #  define IF_PEDANTIC(...) __VA_ARGS__
 #else
-#  define UNLESS_PEDANTIC(...) __VA_ARGS__
-#  define IF_PEDANTIC(...)
+#  define UNLESS_PEDANTIC(x) x
+#  define IF_PEDANTIC(x)
 #endif
 
 #ifdef NANOJIT_IA32

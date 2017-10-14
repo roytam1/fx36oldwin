@@ -2765,7 +2765,7 @@ NS_IMETHODIMP
 jsdService::DumpHeap(const nsACString &fileName)
 {
     ASSERT_VALID_CONTEXT;
-#ifndef DEBUG
+#if 1//ndef DEBUG
     return NS_ERROR_NOT_IMPLEMENTED;
 #else
     nsresult rv = NS_OK;

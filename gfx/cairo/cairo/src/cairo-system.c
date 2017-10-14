@@ -53,11 +53,17 @@
 #if !CAIRO_WIN32_STATIC_BUILD
 
 #define WIN32_LEAN_AND_MEAN
+
+#undef WINVER
+#define WINVER 0x0400
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0400
+
 /* We require Windows 2000 features such as ETO_PDY */
-#if !defined(WINVER) || (WINVER < 0x0500)
+#if 0 && !defined(WINVER) || (WINVER < 0x0500)
 # define WINVER 0x0500
 #endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
+#if 0 && !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
 # define _WIN32_WINNT 0x0500
 #endif
 

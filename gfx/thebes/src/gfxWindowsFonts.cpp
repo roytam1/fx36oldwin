@@ -352,6 +352,30 @@ FontFamily::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
     return matchesSomething;
 }
 
+
+#ifndef GGI_MARK_NONEXISTING_GLYPHS
+#define GGI_MARK_NONEXISTING_GLYPHS 1
+#endif
+
+DWORD WINAPI NS_GetGlyphIndicesA( HDC hdc,LPCSTR lpstr, int c, LPWORD pgi, DWORD fl)
+{
+  memcpy(pgi,lpstr,c);
+  return c;
+
+}
+DWORD WINAPI NS_GetGlyphIndicesW( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
+{
+    for (int i = 0; i < c; i++)
+    {
+        char asciiChar = (char) lpstr[i];
+        pgi[i] = asciiChar;
+    }
+    return c;
+}
+BOOL WINAPI NS_GetTextExtentExPointI( HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize)
+{
+	return GetTextExtentExPointA(hdc, (LPCTSTR)pgiIn, cgi, nMaxExtent, lpnFit, alpDx, lpSize);
+}
 // from t2embapi.h, included in Platform SDK 6.1 but not 6.0
 
 #ifndef __t2embapi__
@@ -393,12 +417,40 @@ typedef LONG( WINAPI *TTLoadEmbeddedFontProc ) (HANDLE* phFontReference, ULONG u
 typedef LONG( WINAPI *TTDeleteEmbeddedFontProc ) (HANDLE hFontReference, ULONG ulFlags, ULONG* pulStatus);
 
 
+typedef HANDLE( WINAPI *AddFontMemResourceExProc ) (PVOID pbFont, DWORD cbFont, PVOID pdv, DWORD *pcFonts);
+typedef LONG( WINAPI *RemoveFontMemResourceExProc ) (HANDLE fh);
+
+typedef DWORD ( WINAPI *GetGlyphIndicesAProc ) (HDC hdc,LPCSTR lpstr, int c, LPWORD pgi, DWORD fl);
+typedef DWORD ( WINAPI *GetGlyphIndicesWProc ) (HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
+typedef BOOL ( WINAPI *GetTextExtentExPointIProc ) (HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize);
+
+static GetGlyphIndicesAProc GetGlyphIndicesAPtr = nsnull;
+static GetGlyphIndicesWProc GetGlyphIndicesWPtr = nsnull;
+static GetTextExtentExPointIProc GetTextExtentExPointIPtr = nsnull;
+
+static AddFontMemResourceExProc AddFontMemResourceExPtr = nsnull;
+static RemoveFontMemResourceExProc RemoveFontMemResourceExPtr = nsnull;
+
+
 static TTLoadEmbeddedFontProc TTLoadEmbeddedFontPtr = nsnull;
 static TTDeleteEmbeddedFontProc TTDeleteEmbeddedFontPtr = nsnull;
 
 void FontEntry::InitializeFontEmbeddingProcs()
 {
-    HMODULE fontlib = LoadLibraryW(L"t2embed.dll");
+    HMODULE fontlib = LoadLibraryW(L"gdi32.dll");
+    AddFontMemResourceExPtr = (AddFontMemResourceExProc) GetProcAddress(fontlib, "AddFontMemResourceEx");
+    RemoveFontMemResourceExPtr = (RemoveFontMemResourceExProc) GetProcAddress(fontlib, "RemoveFontMemResourceEx");
+
+    GetGlyphIndicesAPtr = (GetGlyphIndicesAProc) GetProcAddress(fontlib, "GetGlyphIndicesA");
+    if(!GetGlyphIndicesAPtr) GetGlyphIndicesAPtr = NS_GetGlyphIndicesA;
+
+    GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
+    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = NS_GetGlyphIndicesW;
+
+    GetTextExtentExPointIPtr = (GetTextExtentExPointIProc) GetProcAddress(fontlib, "GetTextExtentExPointI");
+    if(!GetTextExtentExPointIPtr) GetTextExtentExPointIPtr = NS_GetTextExtentExPointI;
+
+    fontlib = LoadLibraryW(L"t2embed.dll");
     if (!fontlib)
         return;
     TTLoadEmbeddedFontPtr = (TTLoadEmbeddedFontProc) GetProcAddress(fontlib, "TTLoadEmbeddedFont");
@@ -414,7 +466,7 @@ public:
     virtual ~WinUserFontData()
     {
         if (!mIsEmbeddedFont) {
-            RemoveFontMemResourceEx(mFontRef);
+            if(RemoveFontMemResourceExPtr) RemoveFontMemResourceExPtr(mFontRef);
         } else {
             ULONG pulStatus;
             TTDeleteEmbeddedFontPtr(mFontRef, 0, &pulStatus);
@@ -588,14 +640,14 @@ FontEntry::LoadFont(const gfxProxyFontEntry &aProxyEntry,
         // http://msdn.microsoft.com/en-us/library/ms533942(VS.85).aspx
         // "A font that is added by AddFontMemResourceEx is always private 
         //  to the process that made the call and is not enumerable."
-        fontRef = AddFontMemResourceEx(fontData, fontLength, 
+        if(AddFontMemResourceExPtr) fontRef = AddFontMemResourceExPtr(fontData, fontLength, 
                                        0 /* reserved */, &numFonts);
         if (!fontRef)
             return nsnull;
 
         // only load fonts with a single face contained in the data
         if (fontRef && numFonts != 1) {
-            RemoveFontMemResourceEx(fontRef);
+            if(RemoveFontMemResourceExPtr) RemoveFontMemResourceExPtr(fontRef);
             return nsnull;
         }
     }
@@ -848,7 +900,7 @@ FontEntry::TestCharacterMap(PRUint32 aCh)
         PRBool hasGlyph = PR_FALSE;
         if (IsType1()) {
             // Type1 fonts and uniscribe APIs don't get along.  ScriptGetCMap will return E_HANDLE
-            DWORD ret = GetGlyphIndicesW(dc, str, 1, glyph, GGI_MARK_NONEXISTING_GLYPHS);
+            DWORD ret = GetGlyphIndicesWPtr(dc, str, 1, glyph, GGI_MARK_NONEXISTING_GLYPHS);
             if (ret != GDI_ERROR && glyph[0] != 0xFFFF)
                 hasGlyph = PR_TRUE;
         } else {
@@ -1083,7 +1135,7 @@ gfxWindowsFont::ComputeMetrics()
     mSpaceGlyph = 0;
     if (metrics.tmPitchAndFamily & TMPF_TRUETYPE) {
         WORD glyph;
-        DWORD ret = GetGlyphIndicesW(dc, L" ", 1, &glyph,
+        DWORD ret = GetGlyphIndicesWPtr(dc, L" ", 1, &glyph,
                                      GGI_MARK_NONEXISTING_GLYPHS);
         if (ret != GDI_ERROR && glyph != 0xFFFF) {
             mSpaceGlyph = glyph;
@@ -1591,7 +1643,7 @@ SetupTextRunFromGlyphs(gfxTextRun *aRun, WCHAR *aGlyphs, HDC aDC,
     nsAutoTArray<int,500> partialWidthArray;
     if (!partialWidthArray.SetLength(length))
         return PR_FALSE;
-    BOOL success = GetTextExtentExPointI(aDC,
+    BOOL success = GetTextExtentExPointIPtr(aDC,
                                          (WORD*) aGlyphs,
                                          length,
                                          INT_MAX,
@@ -1641,7 +1693,7 @@ gfxWindowsFontGroup::InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun,
         if (!glyphArray.SetLength(aLength))
             return;
 
-        DWORD ret = GetGlyphIndicesA(dc, aString, aLength, (WORD*) glyphArray.Elements(),
+        DWORD ret = GetGlyphIndicesAPtr(dc, aString, aLength, (WORD*) glyphArray.Elements(),
                                      GGI_MARK_NONEXISTING_GLYPHS);
         if (ret != GDI_ERROR &&
             SetupTextRunFromGlyphs(aRun, glyphArray.Elements(), dc, font))
@@ -1665,7 +1717,7 @@ gfxWindowsFontGroup::InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun,
         if (!glyphArray.SetLength(aLength))
             return;
 
-        DWORD ret = GetGlyphIndicesW(dc, aString, aLength, (WORD*) glyphArray.Elements(),
+        DWORD ret = GetGlyphIndicesWPtr(dc, aString, aLength, (WORD*) glyphArray.Elements(),
                                      GGI_MARK_NONEXISTING_GLYPHS);
         if (ret != GDI_ERROR &&
             SetupTextRunFromGlyphs(aRun, glyphArray.Elements(), dc, font))
@@ -1913,7 +1965,7 @@ public:
         SelectFont();
 
         mNumGlyphs = mRangeLength;
-        GetGlyphIndicesW(mDC, mRangeString, mRangeLength,
+        GetGlyphIndicesWPtr(mDC, mRangeString, mRangeLength,
                          (WORD*) mGlyphs.Elements(),
                          GGI_MARK_NONEXISTING_GLYPHS);
 
@@ -1995,7 +2047,7 @@ public:
             PR_Abort();
         SIZE size;
 
-        GetTextExtentExPointI(mDC,
+        GetTextExtentExPointIPtr(mDC,
                               (WORD*) mGlyphs.Elements(),
                               mNumGlyphs,
                               INT_MAX,

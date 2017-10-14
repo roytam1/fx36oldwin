@@ -555,7 +555,7 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-#ifdef DEBUG
+#if 0//def DEBUG
 
 static JSBool
 DumpHeap(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
@@ -661,7 +661,7 @@ static JSFunctionSpec glob_functions[] = {
     {"dump",            Dump,           1,0,0},
     {"gc",              GC,             0,0,0},
     {"clear",           Clear,          1,0,0},
-#ifdef DEBUG
+#if 0//def DEBUG
     {"dumpHeap",        DumpHeap,       5,0,0},
 #endif
 #ifdef MOZ_SHARK

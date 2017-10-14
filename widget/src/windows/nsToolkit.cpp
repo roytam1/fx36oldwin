@@ -49,7 +49,7 @@
 #include <objbase.h>
 #include <initguid.h>
 
-#ifndef WINCE
+#if 0//ndef WINCE
 #include "nsUXThemeData.h"
 #endif
 
@@ -224,7 +224,7 @@ nsToolkit::Startup(HMODULE hModule)
     if (setDPIAware)
       setDPIAware();
 
-#ifndef WINCE
+#if 0//ndef WINCE
     nsUXThemeData::Initialize();
 #endif
 }

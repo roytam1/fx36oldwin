@@ -101,14 +101,14 @@ VMPI_setPageProtection(void *address,
         size_t markSize = size > mbi.RegionSize ? mbi.RegionSize : size;
 
         retval = VirtualProtect(address, markSize, newProtectFlags, &oldProtectFlags);
-        NanoAssert(retval);
+        //NanoAssert(retval);
 
         address = (char*) address + markSize;
         size -= markSize;
     } while(size > 0 && retval);
 
     // We should not be clobbering PAGE_GUARD protections
-    NanoAssert((oldProtectFlags & PAGE_GUARD) == 0);
+    //NanoAssert((oldProtectFlags & PAGE_GUARD) == 0);
 }
 
 #elif defined(AVMPLUS_OS2)

@@ -227,7 +227,7 @@ nsXPConnect::ReleaseXPConnectSingleton()
         }
 #endif
 
-#ifdef DEBUG
+#if 0//def DEBUG
         // force a dump of the JavaScript gc heap if JS is still alive
         // if requested through XPC_SHUTDOWN_HEAP_DUMP environment variable
         {

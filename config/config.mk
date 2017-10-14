@@ -83,7 +83,7 @@ check-variable = $(if $(filter-out 0 1,$(words $($(x))z)),$(error Spaces are not
 
 $(foreach x,$(CHECK_VARS),$(check-variable))
 
-core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
+core_abspath = $(if $(2),$(subst $(CYGDRIVE_MOUNT),,$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))),$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1))))
 
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
@@ -785,6 +785,9 @@ NSINSTALL	= $(MOZ_TOOLS_DIR)/nsinstall
 else
 NSINSTALL	= $(CONFIG_TOOLS)/nsinstall$(HOST_BIN_SUFFIX)
 endif # OS2
+ifeq (WINNT,$(CROSS_COMPILE)$(OS_ARCH))
+NSINSTALL	= $(CYGWIN_WRAPPER) $(CONFIG_TOOLS)/nsinstall
+endif # WINNT
 endif # NSINSTALL_BIN
 
 

@@ -185,7 +185,7 @@ dnl Default to MSVC for win32
 dnl ==============================================================
 if test -z "$CROSS_COMPILE"; then
 case "$target" in
-*-cygwin*|*-mingw*|*-msvc*|*-mks*)
+*-cygwin*|*-msvc*|*-mingw*|*-msvc*|*-mks*)
     if test -z "$CC"; then CC=cl; fi
     if test -z "$CXX"; then CXX=cl; fi
     if test -z "$CPP"; then CPP="cl -E -nologo"; fi
@@ -458,10 +458,10 @@ dnl Special win32 checks
 dnl ========================================================
 case "$target" in
 *-wince)
-    WINVER=500
+    WINVER=400
     ;;
 *)
-    WINVER=502
+    WINVER=400
     ;;
 esac
 
@@ -719,7 +719,7 @@ EOF
     AC_DEFINE_UNQUOTED(WINVER,0x$WINVER)
     AC_DEFINE_UNQUOTED(_WIN32_WINNT,0x$WINVER)
     # Require OS features provided by IE 5.0
-    AC_DEFINE_UNQUOTED(_WIN32_IE,0x0500)
+    AC_DEFINE_UNQUOTED(_WIN32_IE,0x0200)
 
     # If the maximum version supported by this SDK is lower than the target
     # version, error out
@@ -2148,7 +2148,7 @@ case "$target" in
         DSO_LDOPTS=-SUBSYSTEM:WINDOWS
         CFLAGS="$CFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
         CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
-        LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib"
+        LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib unicows.lib"
         MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
@@ -2226,7 +2226,7 @@ case "$target" in
         AC_MSG_ERROR([MOZ_TOOLS is not set])
     fi
 
-    MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd -W`
+    MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd`
     if test "$?" != "0" || test -z "$MOZ_TOOLS_DIR"; then
         AC_MSG_ERROR([cd \$MOZ_TOOLS failed. MOZ_TOOLS ==? $MOZ_TOOLS])
     fi
@@ -2237,7 +2237,7 @@ case "$target" in
     MOZ_TOOLS_DIR=`$CYGPATH_W $MOZ_TOOLS_DIR | $CYGPATH_S`
 
     if test -n "$GLIB_PREFIX"; then
-        _GLIB_PREFIX_DIR=`cd $GLIB_PREFIX && pwd -W`
+        _GLIB_PREFIX_DIR=`cd $GLIB_PREFIX && pwd`
         if test "$?" = "0"; then
             if test `echo ${PATH}: | grep -ic "$_GLIB_PREFIX_DIR/bin:"` = 0; then
                 AC_MSG_ERROR([GLIB_PREFIX must be in your \$PATH.])
@@ -2262,7 +2262,7 @@ case "$target" in
     fi
 
     if test -n "$LIBIDL_PREFIX"; then
-        _LIBIDL_PREFIX_DIR=`cd $LIBIDL_PREFIX && pwd -W`
+        _LIBIDL_PREFIX_DIR=`cd $LIBIDL_PREFIX && pwd`
         if test "$?" = "0"; then
             if test `echo ${PATH}: | grep -ic "$_LIBIDL_PREFIX_DIR/bin:"` = 0; then
                 AC_MSG_ERROR([LIBIDL_PREFIX must be in your \$PATH.])
@@ -6883,8 +6883,12 @@ if test "$MOZ_MEMORY"; then
     if test ! -d "$WIN32_CRT_SRC_DIR"; then
       AC_MSG_ERROR([Invalid Win32 CRT source directory: ${WIN32_CRT_SRC_DIR}])
     fi
-    WIN32_CRT_SRC_DIR=`cd "$WIN32_CRT_SRC_DIR" && pwd -W`
-    _objdir_win=`pwd -W`
+#    WIN32_CRT_SRC_DIR=`cd "$WIN32_CRT_SRC_DIR" && pwd -W`
+#    _objdir_win=`pwd -W`
+
+    WIN32_CRT_SRC_DIR=`$CYGPATH_W "$WIN32_CRT_SRC_DIR" | $CYGPATH_S`
+    _objdir_win=`$CYGPATH_W . | $CYGPATH_S`
+
     WIN32_CUSTOM_CRT_DIR="$_objdir_win/memory/jemalloc/crtsrc/build/intel"
     MOZ_MEMORY_LDFLAGS="-MANIFEST:NO -LIBPATH:\"$WIN32_CUSTOM_CRT_DIR\" -NODEFAULTLIB:msvcrt -NODEFAULTLIB:msvcrtd -NODEFAULTLIB:msvcprt -NODEFAULTLIB:msvcprtd -DEFAULTLIB:mozcrt19 -DEFAULTLIB:mozcpp19"
     dnl Also pass this to NSPR/NSS
@@ -8524,8 +8528,8 @@ mingw*)
     WIN_TOP_SRC=`cd $srcdir; pwd -W`
     ;;
 cygwin*|msvc*|mks*)
-    HOST_CC="\$(CYGWIN_WRAPPER) $HOST_CC"
-    HOST_CXX="\$(CYGWIN_WRAPPER) $HOST_CXX"
+#    HOST_CC="\$(CYGWIN_WRAPPER) $HOST_CC"
+#    HOST_CXX="\$(CYGWIN_WRAPPER) $HOST_CXX"
     CC="\$(CYGWIN_WRAPPER) $CC"
     CXX="\$(CYGWIN_WRAPPER) $CXX"
     CPP="\$(CYGWIN_WRAPPER) $CPP"

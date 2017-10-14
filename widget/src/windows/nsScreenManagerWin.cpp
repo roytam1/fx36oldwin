@@ -40,6 +40,7 @@
 // APIs that are only defined when WINVER is >= 0x0500. Don't worry,
 // these won't actually be called unless they are present.
 //
+
 #undef WINVER
 #define WINVER 0x0500
 #undef _WIN32_WINNT
@@ -48,6 +49,13 @@
 #include "nsScreenManagerWin.h"
 #include "nsScreenWin.h"
 
+typedef BOOL (WINAPI *EnumDisplayMonitorsProc)(HDC hdc, LPCRECT lprcClip, MONITORENUMPROC lpfnEnum, LPARAM dwData);
+typedef HMONITOR (WINAPI *MonitorFromRectProc)(LPCRECT lprc, DWORD dwFlags);
+typedef HMONITOR (WINAPI *MonitorFromWindowProc)(HWND hwnd, DWORD dwFlags);
+
+static EnumDisplayMonitorsProc EnumDisplayMonitorsPtr = NULL;
+static MonitorFromRectProc MonitorFromRectPtr = NULL;
+static MonitorFromWindowProc MonitorFromWindowPtr = NULL;
 
 BOOL CALLBACK CountMonitors ( HMONITOR, HDC, LPRECT, LPARAM ioCount ) ;
 
@@ -57,6 +65,11 @@ nsScreenManagerWin :: nsScreenManagerWin ( )
   // nothing to do. I guess we could cache a bunch of information
   // here, but we want to ask the device at runtime in case anything
   // has changed.
+    HMODULE userlib;
+    userlib = LoadLibraryW(L"user32.dll");
+    EnumDisplayMonitorsPtr = (EnumDisplayMonitorsProc) GetProcAddress(userlib, "EnumDisplayMonitors");
+    MonitorFromRectPtr = (MonitorFromRectProc) GetProcAddress(userlib, "MonitorFromRect");
+    MonitorFromWindowPtr = (MonitorFromWindowProc) GetProcAddress(userlib, "MonitorFromWindow");
 }
 
 
@@ -112,7 +125,7 @@ NS_IMETHODIMP
 nsScreenManagerWin :: ScreenForRect ( PRInt32 inLeft, PRInt32 inTop, PRInt32 inWidth, PRInt32 inHeight,
                                         nsIScreen **outScreen )
 {
-  if ( !(inWidth || inHeight) ) {
+  if (!MonitorFromRectPtr || !(inWidth || inHeight) ) {
     NS_WARNING ( "trying to find screen for sizeless window, using primary monitor" );
     *outScreen = CreateNewScreenObject ( nsnull );    // addrefs
     return NS_OK;
@@ -120,7 +133,7 @@ nsScreenManagerWin :: ScreenForRect ( PRInt32 inLeft, PRInt32 inTop, PRInt32 inW
 
   RECT globalWindowBounds = { inLeft, inTop, inLeft + inWidth, inTop + inHeight };
 
-  void* genScreen = ::MonitorFromRect( &globalWindowBounds, MONITOR_DEFAULTTOPRIMARY );
+  void* genScreen = MonitorFromRectPtr( &globalWindowBounds, MONITOR_DEFAULTTOPRIMARY );
 
   *outScreen = CreateNewScreenObject ( genScreen );    // addrefs
   
@@ -174,7 +187,7 @@ nsScreenManagerWin :: GetNumberOfScreens(PRUint32 *aNumberOfScreens)
     *aNumberOfScreens = mNumberOfScreens;
   else {
     PRUint32 count = 0;
-    BOOL result = ::EnumDisplayMonitors(nsnull, nsnull, (MONITORENUMPROC)CountMonitors, (LPARAM)&count);
+    BOOL result = EnumDisplayMonitorsPtr ? EnumDisplayMonitorsPtr(nsnull, nsnull, (MONITORENUMPROC)CountMonitors, (LPARAM)&count) : 0;
     if (!result)
       return NS_ERROR_FAILURE;
     *aNumberOfScreens = mNumberOfScreens = count;
@@ -187,7 +200,11 @@ nsScreenManagerWin :: GetNumberOfScreens(PRUint32 *aNumberOfScreens)
 NS_IMETHODIMP
 nsScreenManagerWin :: ScreenForNativeWidget(void *aWidget, nsIScreen **outScreen)
 {
-  HMONITOR mon = MonitorFromWindow ((HWND) aWidget, MONITOR_DEFAULTTOPRIMARY);
+  if(MonitorFromWindowPtr) {
+  HMONITOR mon = MonitorFromWindowPtr ((HWND) aWidget, MONITOR_DEFAULTTOPRIMARY);
   *outScreen = CreateNewScreenObject (mon);
+  } else {
+  *outScreen = CreateNewScreenObject (nsnull);
+  }
   return NS_OK;
 }

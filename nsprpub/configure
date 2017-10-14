@@ -3442,7 +3442,7 @@ case "$host" in
 *-cygwin*|*-msvc*|*-mks*|*-wince*|*-winmo*)
     NSINSTALL='$(CYGWIN_WRAPPER) nsinstall'
     if test `echo "${PATH}" | grep -c \;` = 0; then
-        CYGWIN_WRAPPER='sh $(topsrcdir)/build/cygwin-wrapper'
+        CYGWIN_WRAPPER='$(topsrcdir)/build/cygwin-wrapper'
     fi
     ;;
 *-beos*)

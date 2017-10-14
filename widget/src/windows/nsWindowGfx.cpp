@@ -70,6 +70,8 @@ using mozilla::plugins::PluginInstanceParent;
 #include "nsIDeviceContext.h"
 #include "prmem.h"
 
+#define WINCE 1
+
 #ifndef WINCE
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
@@ -269,7 +271,7 @@ nsCOMPtr<nsIRegion> nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
       return paintRgnWin;
     }
   }
-#ifndef WINCE
+#if 1//ndef WINCE
   paintRgn = ::CreateRectRgn(0, 0, 0, 0);
   if (paintRgn != NULL) {
     int result = GetRandomRgn(aDC, paintRgn, SYSRGN);
@@ -523,7 +525,7 @@ DDRAW_FAILED:
     nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
     thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
-#ifdef WINCE
+#if 0//def WINCE
     thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
 #endif
 
@@ -844,7 +846,7 @@ HBITMAP nsWindowGfx::DataToBitmap(PRUint8* aImageData,
                                   PRUint32 aHeight,
                                   PRUint32 aDepth)
 {
-#ifndef WINCE
+#if 1//ndef WINCE
   HDC dc = ::GetDC(NULL);
 
   if (aDepth == 32 && IsCursorTranslucencySupported()) {

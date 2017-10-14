@@ -93,6 +93,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS		= nsLocalFileOSX.mm
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+CPPSRCS		+= nsWinAPIs.cpp
 CPPSRCS		+= nsLocalFileWin.cpp
 else
 CPPSRCS		+= nsLocalFileUnix.cpp
@@ -123,7 +124,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 EXPORTS		+= nsLocalFileOSX.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-EXPORTS		+= nsLocalFileWin.h
+EXPORTS		+= nsLocalFileWin.h nsWinAPIs.h
 else
 EXPORTS		+= nsLocalFileUnix.h
 endif # windows

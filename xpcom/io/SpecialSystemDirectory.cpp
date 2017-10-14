@@ -46,6 +46,8 @@
 
 #if defined(XP_WIN)
 
+#include "nsNativeCharsetUtils.h"
+#include "nsWinAPIs.h"
 #include <windows.h>
 #include <shlobj.h>
 #include <stdlib.h>
@@ -113,12 +115,29 @@
 #endif
 
 #ifdef XP_WIN
+typedef BOOL (WINAPI * GetSpecialPathProc) (HWND hwndOwner, LPSTR lpszPath,
+                                            int nFolder, BOOL fCreate);
+typedef BOOL (WINAPI * nsGetSpecialFolderPathW) (HWND hwndOwner, 
+                                                 LPWSTR lpszPath,
+                                                 int nFolder, BOOL fCreate);
+typedef BOOL (WINAPI * nsGetSpecialFolderPathA) (HWND hwndOwner,
+                                                 LPSTR lpszPath, int nFolder,
+                                                 BOOL fCreate);
+
+
+static GetSpecialPathProc gGetSpecialPathProc = NULL;
+static nsGetSpecialFolderPathA gGetSpecialFolderPathA = NULL;
+static nsGetSpecialFolderPathW gGetSpecialFolderPath  = NULL;
+
 typedef HRESULT (WINAPI* nsGetKnownFolderPath)(GUID& rfid,
                                                DWORD dwFlags,
                                                HANDLE hToken,
                                                PWSTR *ppszPath);
 
 static nsGetKnownFolderPath gGetKnownFolderPath = NULL;
+
+static BOOL WINAPI NS_GetSpecialFolderPath(HWND hwndOwner, LPWSTR aPath,
+                                           int aFolder, BOOL fCreate);
 
 static HINSTANCE gShell32DLLInst = NULL;
 #endif
@@ -131,6 +150,19 @@ NS_COM void StartupSpecialSystemDirectory()
     gShell32DLLInst = LoadLibraryW(L"shell32.dll");
     if(gShell32DLLInst)
     {
+        if (NS_UseUnicode())
+        {
+            gGetSpecialFolderPath = (nsGetSpecialFolderPathW) 
+                GetProcAddress(gShell32DLLInst, "SHGetSpecialFolderPathW");
+        }
+        else 
+        {
+            gGetSpecialFolderPathA = (nsGetSpecialFolderPathA)
+                GetProcAddress(gShell32DLLInst, "SHGetSpecialFolderPathA");
+            // need to check because it's not available on Win95 without IE.
+            if (gGetSpecialFolderPathA)
+                gGetSpecialFolderPath = NS_GetSpecialFolderPath;
+        }
         gGetKnownFolderPath = (nsGetKnownFolderPath)
             GetProcAddress(gShell32DLLInst, "SHGetKnownFolderPath");
     }
@@ -145,6 +177,7 @@ NS_COM void ShutdownSpecialSystemDirectory()
         FreeLibrary(gShell32DLLInst);
         gShell32DLLInst = NULL;
         gGetKnownFolderPath = NULL;
+        gGetSpecialFolderPath = NULL;
     }
 #endif
 }
@@ -174,40 +207,86 @@ static nsresult GetKnownFolder(GUID* guid, nsILocalFile** aFile)
 static nsresult GetWindowsFolder(int folder, nsILocalFile** aFile)
 //----------------------------------------------------------------------------------------
 {
-#ifdef WINCE
-#define SHGetSpecialFolderPathW SHGetSpecialFolderPath
+    if (gGetSpecialFolderPath) { // With MS IE 4.0 or higher
+        WCHAR path[MAX_PATH + 2];
+        HRESULT result = gGetSpecialFolderPath(NULL, path, folder, true);
+        
+        if (!SUCCEEDED(result)) 
+            return NS_ERROR_FAILURE;
 
-#ifndef WINCE_WINDOWS_MOBILE
-    if (folder == CSIDL_APPDATA || folder == CSIDL_LOCAL_APPDATA)
-        folder = CSIDL_PROFILE;
-#endif
-#endif
+        // Append the trailing slash
+        int len = wcslen(path);
+        if (len > 1 && path[len - 1] != L'\\') 
+        {
+            path[len]   = L'\\';
+            path[++len] = L'\0';
+        }
 
-    WCHAR path_orig[MAX_PATH + 3];
-    WCHAR *path = path_orig+1;
-    HRESULT result = SHGetSpecialFolderPathW(NULL, path, folder, true);
+        return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
+    }
 
-    if (!SUCCEEDED(result))
+    nsresult rv = NS_ERROR_FAILURE;
+    LPMALLOC pMalloc = NULL;
+    LPWSTR pBuffer = NULL;
+    LPITEMIDLIST pItemIDList = NULL;
+    int len;
+ 
+    // Get the shell's allocator. 
+    if (!SUCCEEDED(SHGetMalloc(&pMalloc))) 
         return NS_ERROR_FAILURE;
 
+    // Allocate a buffer
+    if ((pBuffer = (LPWSTR) pMalloc->Alloc(MAX_PATH + 2)) == NULL)
+        return NS_ERROR_OUT_OF_MEMORY;
+ 
+    // Get the PIDL for the folder. 
+    if (!SUCCEEDED(SHGetSpecialFolderLocation(NULL, folder, &pItemIDList)))
+        goto Clean;
+ 
+    if (!SUCCEEDED(nsWinAPIs::mSHGetPathFromIDList(pItemIDList, pBuffer)))
+        goto Clean;
+
     // Append the trailing slash
-    int len = wcslen(path);
-    if (len > 1 && path[len - 1] != L'\\')
+    len = wcslen(pBuffer);
+    pBuffer[len] = L'\\';
+    pBuffer[++len] = L'\0';
+
+    // Assign the directory
+    rv = NS_NewLocalFile(nsDependentString(pBuffer, len), 
+                         PR_TRUE, 
+                         aFile);
+
+Clean:
+    // Clean up. 
+    if (pItemIDList)
+        pMalloc->Free(pItemIDList); 
+    if (pBuffer)
+        pMalloc->Free(pBuffer); 
+
+	pMalloc->Release();
+    
+    return rv;
+} 
+
+// Assume that this function is always invoked with aPath with the capacity
+// no smaller than MAX_PATH. It's possible because it's only referred to in 
+// this file and we have made sure that they're indeed.
+
+static BOOL WINAPI NS_GetSpecialFolderPath(HWND hwndOwner,
+                                           LPWSTR aPath, 
+                                           int aFolder, BOOL fCreate)
+{
+    char path[MAX_PATH];
+    if (gGetSpecialFolderPathA(hwndOwner, path, aFolder, fCreate))
     {
-        path[len]   = L'\\';
-        path[++len] = L'\0';
+        if (NS_ConvertAtoW(path, 0, aPath) > MAX_PATH)
+        {
+            SetLastError(ERROR_INSUFFICIENT_BUFFER);
+            return FALSE;
+        }
+        return NS_ConvertAtoW(path, MAX_PATH, aPath) ? TRUE : FALSE;
     }
-
-#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
-    // sometimes CSIDL_PROFILE shows up without a root slash
-    if (folder == CSIDL_PROFILE && path[0] != '\\') {
-        path_orig[0] = '\\';
-        path = path_orig;
-        len++;
-    }
-#endif
-
-    return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
+    return FALSE;
 }
 
 #ifndef WINCE

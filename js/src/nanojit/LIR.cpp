@@ -1940,16 +1940,16 @@ namespace nanojit
         })
         /* END decorative preamble */
 
-        verbose_only( if (liveVerb) {
+        /*verbose_only( if (liveVerb) {
             logc->printf("\n");
             logc->printf("=== Results of liveness analysis:\n");
             logc->printf("===\n");
             live(alloc, frag, logc);
-        })
+        })*/
 
         /* Set up the generic text output cache for the assembler */
-        verbose_only( StringList asmOutput(alloc); )
-        verbose_only( assm->_outputCache = &asmOutput; )
+        //verbose_only( StringList asmOutput(alloc); )
+        //verbose_only( assm->_outputCache = &asmOutput; )
 
         assm->beginAssembly(frag);
         if (assm->error())
@@ -1957,26 +1957,26 @@ namespace nanojit
 
         //logc->printf("recompile trigger %X kind %d\n", (int)frag, frag->kind);
 
-        verbose_only( if (anyVerb) {
+        /*verbose_only( if (anyVerb) {
             logc->printf("=== Translating LIR fragments into assembly:\n");
-        })
+        })*/
 
         // now the the main trunk
-        verbose_only( if (anyVerb) {
+        /*verbose_only( if (anyVerb) {
             logc->printf("=== -- Compile trunk %s: begin\n",
                          labels->format(frag));
-        })
+        })*/
         assm->assemble(frag);
-        verbose_only( if (anyVerb) {
+        /*verbose_only( if (anyVerb) {
             logc->printf("=== -- Compile trunk %s: end\n",
                          labels->format(frag));
-        })
+        })*/
 
-        verbose_only(
+        /*verbose_only(
             if (asmVerb)
                 assm->outputf("## compiling trunk %s",
                               labels->format(frag));
-        )
+        )*/
         assm->endAssembly(frag);
 
         // reverse output so that assembly is displayed low-to-high
@@ -1985,7 +1985,7 @@ namespace nanojit
         // the entire list of stored strings, and hand them a second time
         // to assm->output.  Since _outputCache is now NULL, outputf just
         // hands these strings directly onwards to logc->printf.
-        verbose_only( if (anyVerb) {
+        /*verbose_only( if (anyVerb) {
             logc->printf("\n");
             logc->printf("=== Aggregated assembly output: BEGIN\n");
             logc->printf("===\n");
@@ -1996,7 +1996,7 @@ namespace nanojit
             }
             logc->printf("===\n");
             logc->printf("=== Aggregated assembly output: END\n");
-        });
+        });*/
 
         if (assm->error())
             frag->fragEntry = 0;
@@ -2005,7 +2005,7 @@ namespace nanojit
         verbose_only( frag->nExitBytes += assm->exitBytes; )
 
         /* BEGIN decorative postamble */
-        verbose_only( if (anyVerb) {
+        /*verbose_only( if (anyVerb) {
             logc->printf("\n");
             logc->printf("===\n");
             logc->printf("=== END LIR::compile(%p, %p)\n",
@@ -2013,7 +2013,7 @@ namespace nanojit
             logc->printf("========================================"
                          "========================================\n");
             logc->printf("\n");
-        });
+        });*/
         /* END decorative postamble */
     }
 

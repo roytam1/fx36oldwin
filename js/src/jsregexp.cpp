@@ -2016,11 +2016,11 @@ LookupNativeRegExp(JSContext* cx, uint16 re_flags,
     Fragment *frag = table.get(k);
 
     if (!frag) {
-        verbose_only(
+        /*verbose_only(
         uint32_t profFragID = (js_LogController.lcbits & LC_FragProfile)
                               ? (++(tm->lastFragID)) : 0;
-        )
-        frag = new (alloc) Fragment(0 verbose_only(, profFragID));
+        )*/
+        frag = new (alloc) Fragment(0 /*verbose_only(, profFragID)*/);
         frag->lirbuf = tm->reLirBuf;
         frag->root = frag;
         /*
@@ -3188,10 +3188,10 @@ class RegExpNativeCompiler {
         // If profiling, record where the loop label is, so that the
         // assembler can insert a frag-entry-counter increment at that
         // point
-        verbose_only( if (js_LogController.lcbits & LC_FragProfile) {
+        /*verbose_only( if (js_LogController.lcbits & LC_FragProfile) {
             NanoAssert(!fragment->loopLabel);
             fragment->loopLabel = loopLabel;
-        })
+        })*/
 
         start = addName(lirbuf,
                       lir->insLoad(LIR_ldp, state,
@@ -3227,13 +3227,13 @@ class RegExpNativeCompiler {
         if (outOfMemory() || js_OverfullJITCache(tm)) {
             delete lirBufWriter;
             // recover profiling data from expiring Fragments
-            verbose_only(
+            /*verbose_only(
                 REHashMap::Iter iter(*(tm->reFragments));
                 while (iter.next()) {
                     nanojit::Fragment* frag = iter.value();
                     js_FragProfiling_FragFinalizer(frag, tm);
                 }
-            )
+            )*/
             js_FlushJITCache(cx);
         } else {
             if (!guard) insertGuard(loopLabel, re_chars, re_length);

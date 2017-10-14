@@ -42,6 +42,90 @@
 #include <windows.h>
 #include <shlobj.h>
 
+#if WINVER < 0x0500
+#ifndef GUID_DEFINED
+#define GUID_DEFINED
+#if defined(__midl)
+typedef struct {
+    unsigned long  Data1;
+    unsigned short Data2;
+    unsigned short Data3;
+    byte           Data4[ 8 ];
+} GUID;
+#else
+typedef struct _GUID {
+    unsigned long  Data1;
+    unsigned short Data2;
+    unsigned short Data3;
+    unsigned char  Data4[ 8 ];
+} GUID;
+#endif
+#endif
+
+#ifndef DECLSPEC_SELECTANY
+#if (_MSC_VER >= 1100)
+#define DECLSPEC_SELECTANY  __declspec(selectany)
+#else
+#define DECLSPEC_SELECTANY
+#endif
+#endif
+
+#ifndef EXTERN_C
+#ifdef __cplusplus
+#define EXTERN_C    extern "C"
+#else
+#define EXTERN_C    extern
+#endif
+#endif
+
+#undef DEFINE_GUID
+#define DEFINE_GUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
+        EXTERN_C const GUID DECLSPEC_SELECTANY name \
+                = { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
+// {DE5BF786-477A-11d2-839D-00C04FD918D0}
+DEFINE_GUID(IID_IDragSourceHelper,  0xde5bf786, 0x477a, 0x11d2, 0x83, 0x9d, 0x0, 0xc0, 0x4f, 0xd9, 0x18, 0xd0);
+
+#include <pshpack8.h>
+
+#ifndef SHDRAGIMAGE_DEFINED
+#define SHDRAGIMAGE_DEFINED
+typedef struct
+{
+    SIZE        sizeDragImage;      // OUT - The length and Width of the
+                                    //        rendered image
+    POINT       ptOffset;           // OUT - The Offset from the mouse cursor to
+                                    //        the upper left corner of the image
+    HBITMAP     hbmpDragImage;      // OUT - The Bitmap containing the rendered
+                                    //        drag images
+    COLORREF    crColorKey;         // OUT - The COLORREF that has been blitted
+                                    //        to the background of the images
+} SHDRAGIMAGE, *LPSHDRAGIMAGE;
+#endif
+
+#include <poppack.h>        /* Return to byte packing */
+
+// This is sent to a window to get the rendered images to a bitmap
+// Call RegisterWindowMessage to get the ID
+#define DI_GETDRAGIMAGE     TEXT("ShellGetDragImage")
+
+#undef INTERFACE
+#define INTERFACE IDragSourceHelper
+
+DECLARE_INTERFACE_( IDragSourceHelper, IUnknown )
+{
+    // IUnknown methods
+    STDMETHOD (QueryInterface)(THIS_ REFIID riid, void **ppv) PURE;
+    STDMETHOD_(ULONG, AddRef) ( THIS ) PURE;
+    STDMETHOD_(ULONG, Release) ( THIS ) PURE;
+
+    // IDragSourceHelper
+    STDMETHOD (InitializeFromBitmap)(THIS_ LPSHDRAGIMAGE pshdi,
+                                     IDataObject* pDataObject) PURE;
+    STDMETHOD (InitializeFromWindow)(THIS_ HWND hwnd, POINT* ppt,
+                                     IDataObject* pDataObject) PURE;
+};
+#endif
+
 struct IDropSource;
 struct IDataObject;
 class  nsNativeDragTarget;

@@ -70,6 +70,14 @@ static PRUint32 gTotalDDBSize = 0;
 // and don't let anything in that's bigger than 4MB
 #define kMaxSingleDDBSize (4*1024*1024)
 
+#ifndef GR_GDIOBJECTS
+#define GR_GDIOBJECTS 0
+#endif
+
+typedef DWORD ( WINAPI *GetGuiResourcesProc )(HANDLE hProcess, DWORD  uiFlags);
+static GetGuiResourcesProc GetGuiResourcesPtr = nsnull;
+
+
 #endif
 
 // Returns true if an image of aWidth x aHeight is allowed and legal.
@@ -129,7 +137,8 @@ static PRBool ShouldUseImageSurfaces()
   // at 7000 GDI objects, stop allocating normal images to make sure
   // we never hit the 10k hard limit.
   // GetCurrentProcess() just returns (HANDLE)-1, it's inlined afaik
-  DWORD count = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
+  DWORD count = 0;
+  if(GetGuiResourcesPtr) GetGuiResourcesPtr(GetCurrentProcess(), GR_GDIOBJECTS);
   if (count == 0 ||
       count > kGDIObjectsHighWaterMark)
   {
@@ -166,6 +175,8 @@ imgFrame::imgFrame() :
     }
     hasCheckedOptimize = PR_TRUE;
   }
+    HMODULE fontlib = LoadLibraryW(L"user32.dll");
+    GetGuiResourcesPtr = (GetGuiResourcesProc) GetProcAddress(fontlib, "GetGuiResources");
 }
 
 imgFrame::~imgFrame()

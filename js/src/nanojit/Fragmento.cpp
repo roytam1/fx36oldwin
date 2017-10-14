@@ -60,14 +60,14 @@ namespace nanojit
           recordAttempts(0),
           fragEntry(NULL),
           vmprivate(NULL),
-          verbose_only( loopLabel(NULL), )
+          /*verbose_only( loopLabel(NULL), )
           verbose_only( profFragID(profFragID), )
           verbose_only( profCount(0), )
           verbose_only( nStaticExits(0), )
           verbose_only( nCodeBytes(0), )
           verbose_only( nExitBytes(0), )
           verbose_only( guardNumberer(1), )
-          verbose_only( guardsForFrag(NULL), )
+          verbose_only( guardsForFrag(NULL), )*/
           _code(NULL),
           _hits(0)
     {
