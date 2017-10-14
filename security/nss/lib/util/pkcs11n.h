@@ -1,46 +1,9 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dr Stephen Henson <stephen.henson@gemplus.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef _PKCS11N_H_
 #define _PKCS11N_H_
-
-#ifdef DEBUG
-static const char CKT_CVS_ID[] = "@(#) $RCSfile: pkcs11n.h,v $ $Revision: 1.19.22.2 $ $Date: 2010/12/04 19:10:46 $";
-#endif /* DEBUG */
 
 /*
  * pkcs11n.h
@@ -162,7 +125,6 @@ static const char CKT_CVS_ID[] = "@(#) $RCSfile: pkcs11n.h,v $ $Revision: 1.19.2
 #define CKA_CERT_MD5_HASH		(CKA_TRUST + 101)
 
 /* NSS trust stuff */
-/* XXX fgmr new ones here-- step-up, etc. */
 
 /* HISTORICAL: define used to pass in the database key for DSA private keys */
 #define CKA_NETSCAPE_DB                 0xD5A0DB00L
@@ -229,6 +191,29 @@ static const char CKT_CVS_ID[] = "@(#) $RCSfile: pkcs11n.h,v $ $Revision: 1.19.2
 #define CKM_NSS_JPAKE_FINAL_SHA384  (CKM_NSS + 17)
 #define CKM_NSS_JPAKE_FINAL_SHA512  (CKM_NSS + 18)
 
+/* Constant-time MAC mechanisms:
+ *
+ * These operations verify a padded, MAC-then-encrypt block of data in
+ * constant-time. Because of the order of operations, the padding bytes are not
+ * protected by the MAC. However, disclosing the value of the padding bytes
+ * gives an attacker the ability to decrypt ciphertexts. Such disclosure can be
+ * as subtle as taking slightly less time to perform the MAC when the padding
+ * is one byte longer. See https://www.isg.rhul.ac.uk/tls/
+ *
+ * CKM_NSS_HMAC_CONSTANT_TIME: performs an HMAC authentication.
+ * CKM_NSS_SSL3_MAC_CONSTANT_TIME: performs an authentication with SSLv3 MAC.
+ *
+ * Parameter type: CK_NSS_MAC_CONSTANT_TIME_PARAMS
+ */
+#define CKM_NSS_HMAC_CONSTANT_TIME      (CKM_NSS + 19)
+#define CKM_NSS_SSL3_MAC_CONSTANT_TIME  (CKM_NSS + 20)
+
+/* TLS 1.2 mechanisms */
+#define CKM_NSS_TLS_PRF_GENERAL_SHA256          (CKM_NSS + 21)
+#define CKM_NSS_TLS_MASTER_KEY_DERIVE_SHA256    (CKM_NSS + 22)
+#define CKM_NSS_TLS_KEY_AND_MAC_DERIVE_SHA256   (CKM_NSS + 23)
+#define CKM_NSS_TLS_MASTER_KEY_DERIVE_DH_SHA256 (CKM_NSS + 24)
+
 /*
  * HISTORICAL:
  * Do not attempt to use these. They are only used by NETSCAPE's internal
@@ -273,6 +258,28 @@ typedef struct CK_NSS_JPAKERound2Params {
 typedef struct CK_NSS_JPAKEFinalParams {
     CK_NSS_JPAKEPublicValue B; /* in */
 } CK_NSS_JPAKEFinalParams;
+
+/* macAlg: the MAC algorithm to use. This determines the hash function used in
+ *     the HMAC/SSLv3 MAC calculations.
+ * ulBodyTotalLen: the total length of the data, including padding bytes and
+ *     padding length.
+ * pHeader: points to a block of data that contains additional data to
+ *     authenticate. For TLS this includes the sequence number etc. For SSLv3,
+ *     this also includes the initial padding bytes.
+ *
+ * NOTE: the softoken's implementation of CKM_NSS_HMAC_CONSTANT_TIME and
+ * CKM_NSS_SSL3_MAC_CONSTANT_TIME requires that the sum of ulBodyTotalLen
+ * and ulHeaderLen be much smaller than 2^32 / 8 bytes because it uses an
+ * unsigned int variable to represent the length in bits. This should not
+ * be a problem because the SSL/TLS protocol limits the size of an SSL
+ * record to something considerably less than 2^32 bytes.
+ */
+typedef struct CK_NSS_MAC_CONSTANT_TIME_PARAMS {
+    CK_MECHANISM_TYPE macAlg;   /* in */
+    CK_ULONG ulBodyTotalLen;    /* in */
+    CK_BYTE * pHeader;          /* in */
+    CK_ULONG ulHeaderLen;       /* in */
+} CK_NSS_MAC_CONSTANT_TIME_PARAMS;
 
 /*
  * NSS-defined return values
@@ -330,16 +337,71 @@ typedef CK_ULONG          CK_TRUST;
 /* If trust goes standard, these'll probably drop out of vendor space. */
 #define CKT_NSS_TRUSTED            (CKT_NSS + 1)
 #define CKT_NSS_TRUSTED_DELEGATOR  (CKT_NSS + 2)
-#define CKT_NSS_UNTRUSTED          (CKT_NSS + 3)
-#define CKT_NSS_MUST_VERIFY        (CKT_NSS + 4)
+#define CKT_NSS_MUST_VERIFY_TRUST  (CKT_NSS + 3)
+#define CKT_NSS_NOT_TRUSTED        (CKT_NSS + 10)
 #define CKT_NSS_TRUST_UNKNOWN      (CKT_NSS + 5) /* default */
 
 /* 
  * These may well remain NSS-specific; I'm only using them
  * to cache resolution data.
  */
-#define CKT_NSS_VALID              (CKT_NSS + 10)
 #define CKT_NSS_VALID_DELEGATOR    (CKT_NSS + 11)
+
+
+/*
+ * old definitions. They still exist, but the plain meaning of the
+ * labels have never been accurate to what was really implemented.
+ * The new labels correctly reflect what the values effectively mean.
+ */
+#if defined(__GNUC__) && (__GNUC__ > 3)
+/* make GCC warn when we use these #defines */
+/*
+ *  This is really painful because GCC doesn't allow us to mark random
+ *  #defines as deprecated. We can only mark the following:
+ *      functions, variables, and types.
+ *  const variables will create extra storage for everyone including this
+ *       header file, so it's undesirable.
+ *  functions could be inlined to prevent storage creation, but will fail
+ *       when constant values are expected (like switch statements).
+ *  enum types do not seem to pay attention to the deprecated attribute.
+ *
+ *  That leaves typedefs. We declare new types that we then deprecate, then
+ *  cast the resulting value to the deprecated type in the #define, thus
+ *  producting the warning when the #define is used.
+ */
+#if (__GNUC__  == 4) && (__GNUC_MINOR__ < 5)
+/* The mac doesn't like the friendlier deprecate messages. I'm assuming this
+ * is a gcc version issue rather than mac or ppc specific */
+typedef CK_TRUST __CKT_NSS_UNTRUSTED __attribute__((deprecated));
+typedef CK_TRUST __CKT_NSS_VALID __attribute__ ((deprecated));
+typedef CK_TRUST __CKT_NSS_MUST_VERIFY __attribute__((deprecated));
+#else
+/* when possible, get a full deprecation warning. This works on gcc 4.5
+ * it may work on earlier versions of gcc */
+typedef CK_TRUST __CKT_NSS_UNTRUSTED __attribute__((deprecated
+    ("CKT_NSS_UNTRUSTED really means CKT_NSS_MUST_VERIFY_TRUST")));
+typedef CK_TRUST __CKT_NSS_VALID __attribute__ ((deprecated
+    ("CKT_NSS_VALID really means CKT_NSS_NOT_TRUSTED")));
+typedef CK_TRUST __CKT_NSS_MUST_VERIFY __attribute__((deprecated
+    ("CKT_NSS_MUST_VERIFY really functions as CKT_NSS_TRUST_UNKNOWN")));
+#endif
+#define CKT_NSS_UNTRUSTED ((__CKT_NSS_UNTRUSTED)CKT_NSS_MUST_VERIFY_TRUST)
+#define CKT_NSS_VALID     ((__CKT_NSS_VALID) CKT_NSS_NOT_TRUSTED)
+/* keep the old value for compatibility reasons*/
+#define CKT_NSS_MUST_VERIFY ((__CKT_NSS_MUST_VERIFY)(CKT_NSS +4))
+#else
+#ifdef _WIN32
+/* This magic gets the windows compiler to give us a deprecation
+ * warning */
+#pragma deprecated(CKT_NSS_UNTRUSTED, CKT_NSS_MUST_VERIFY, CKT_NSS_VALID)
+#endif
+/* CKT_NSS_UNTRUSTED really means CKT_NSS_MUST_VERIFY_TRUST */
+#define CKT_NSS_UNTRUSTED          CKT_NSS_MUST_VERIFY_TRUST
+/* CKT_NSS_VALID really means CKT_NSS_NOT_TRUSTED */
+#define CKT_NSS_VALID              CKT_NSS_NOT_TRUSTED
+/* CKT_NSS_MUST_VERIFY was always treated as CKT_NSS_TRUST_UNKNOWN */
+#define CKT_NSS_MUST_VERIFY        (CKT_NSS + 4)  /*really means trust unknown*/
+#endif
 
 /* don't leave old programs in a lurch just yet, give them the old NETSCAPE
  * synonym */
@@ -367,6 +429,7 @@ typedef CK_ULONG          CK_TRUST;
 #define CKM_NETSCAPE_AES_KEY_WRAP_PAD	CKM_NSS_AES_KEY_WRAP_PAD
 #define CKR_NETSCAPE_CERTDB_FAILED      CKR_NSS_CERTDB_FAILED
 #define CKR_NETSCAPE_KEYDB_FAILED       CKR_NSS_KEYDB_FAILED
+
 #define CKT_NETSCAPE_TRUSTED            CKT_NSS_TRUSTED
 #define CKT_NETSCAPE_TRUSTED_DELEGATOR  CKT_NSS_TRUSTED_DELEGATOR
 #define CKT_NETSCAPE_UNTRUSTED          CKT_NSS_UNTRUSTED

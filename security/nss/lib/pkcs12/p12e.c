@@ -1,38 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "p12t.h"
 #include "p12.h"
@@ -49,6 +17,8 @@
 #include "p12plcy.h"
 #include "p12local.h"
 #include "prcpucfg.h"
+
+extern const int NSS_PBE_DEFAULT_ITERATION_COUNT; /* defined in p7create.c */
 
 /*
 ** This PKCS12 file encoder uses numerous nested ASN.1 and PKCS7 encoder
@@ -92,7 +62,7 @@ typedef struct sec_pkcs12OutputBufferStr sec_pkcs12OutputBuffer;
  * PFX structure.
  */
 struct SEC_PKCS12SafeInfoStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
 
     /* information for setting up password encryption */
     SECItem pwitem;
@@ -115,7 +85,7 @@ struct SEC_PKCS12SafeInfoStr {
  * certificates and keys through PKCS 12.
  */
 struct SEC_PKCS12ExportContextStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     PK11SlotInfo *slot;
     void *wincx;
 
@@ -160,7 +130,7 @@ struct sec_pkcs12_hmac_and_output_info {
  * portion of PKCS 12. 
  */
 typedef struct sec_PKCS12EncoderContextStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SEC_PKCS12ExportContext *p12exp;
 
     /* encoder information - this is set up based on whether 
@@ -208,7 +178,7 @@ SEC_PKCS12ExportContext *
 SEC_PKCS12CreateExportContext(SECKEYGetPasswordKey pwfn, void *pwfnarg,  
 			      PK11SlotInfo *slot, void *wincx)
 {
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     SEC_PKCS12ExportContext *p12ctxt = NULL;
 
     /* allocate the arena and create the context */
@@ -613,7 +583,7 @@ loser:
 
 /* creates a safe contents which safeBags will be appended to */
 sec_PKCS12SafeContents *
-sec_PKCS12CreateSafeContents(PRArenaPool *arena)
+sec_PKCS12CreateSafeContents(PLArenaPool *arena)
 {
     sec_PKCS12SafeContents *safeContents;
 
@@ -643,7 +613,7 @@ loser:
 /* appends a safe bag to a safeContents using the specified arena. 
  */
 SECStatus
-sec_pkcs12_append_bag_to_safe_contents(PRArenaPool *arena, 
+sec_pkcs12_append_bag_to_safe_contents(PLArenaPool *arena,
 				       sec_PKCS12SafeContents *safeContents,
 				       sec_PKCS12SafeBag *safeBag)
 {
@@ -804,7 +774,7 @@ loser:
  * occurs NULL is returned.
  */
 sec_PKCS12CertBag *
-sec_PKCS12NewCertBag(PRArenaPool *arena, SECOidTag certType)
+sec_PKCS12NewCertBag(PLArenaPool *arena, SECOidTag certType)
 {
     sec_PKCS12CertBag *certBag = NULL;
     SECOidData *bagType = NULL;
@@ -848,7 +818,7 @@ loser:
  * occurs NULL is returned.
  */
 sec_PKCS12CRLBag *
-sec_PKCS12NewCRLBag(PRArenaPool *arena, SECOidTag crlType)
+sec_PKCS12NewCRLBag(PLArenaPool *arena, SECOidTag crlType)
 {
     sec_PKCS12CRLBag *crlBag = NULL;
     SECOidData *bagType = NULL;
@@ -1256,8 +1226,9 @@ SEC_PKCS12AddKeyForCert(SEC_PKCS12ExportContext *p12ctxt, SEC_PKCS12SafeInfo *sa
 	}
 
 	epki = PK11_ExportEncryptedPrivateKeyInfo(slot, algorithm, 
-						  &uniPwitem, cert, 1, 
-						  p12ctxt->wincx);
+					    &uniPwitem, cert,
+					    NSS_PBE_DEFAULT_ITERATION_COUNT,
+					    p12ctxt->wincx);
 	PK11_FreeSlot(slot);
 	if(!epki) {
 	    PORT_SetError(SEC_ERROR_PKCS12_UNABLE_TO_EXPORT_KEY);
@@ -1605,6 +1576,11 @@ sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
 		PORT_SetError(SEC_ERROR_NO_MEMORY);
 		goto loser;
 	    }   
+	    if (!SEC_ASN1EncodeInteger(p12exp->arena, &(p12enc->mac.iter),
+				       NSS_PBE_DEFAULT_ITERATION_COUNT)) {
+		/* XXX salt is leaked */
+		goto loser;
+	    }
 
 	    /* generate HMAC key */
 	    if(!sec_pkcs12_convert_item_to_unicode(NULL, &pwd, 
@@ -1618,7 +1594,8 @@ sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
 	     * PBA keygens. PKCS #5 v2 support will require a change to
 	     * the PKCS #12 spec.
 	     */
-	    params = PK11_CreatePBEParams(salt, &pwd, 1);
+	    params = PK11_CreatePBEParams(salt, &pwd,
+                                          NSS_PBE_DEFAULT_ITERATION_COUNT);
 	    SECITEM_ZfreeItem(salt, PR_TRUE);
 	    SECITEM_ZfreeItem(&pwd, PR_FALSE);
 

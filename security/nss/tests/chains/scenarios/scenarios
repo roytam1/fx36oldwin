@@ -19,6 +19,7 @@
 #
 # Contributor(s):
 #   Slavomir Katuscak <slavomir.katuscak@sun.com>, Sun Microsystems
+#   Ryan Sleevi <ryan.sleevi@gmail.com>, Google
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -33,6 +34,15 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
+#
+# Scenario ocspd.cfg will always be processed first,
+# regardless of its presence in this list.
+#
+# Scenario method.cfg will always be processed, regardless of its presence
+# in this list, and will be processed twice, once with httpserv -O get 
+# and once with -O post. Because method.cfg will be executed with both
+# classic and libpkix engines, it must not contain any policy checks.
+#
 bridge.cfg
 megabridge_3_2.cfg
 extension.cfg
@@ -51,3 +61,5 @@ dsa.cfg
 revoc.cfg
 ocsp.cfg
 crldp.cfg
+trustanchors.cfg
+nameconstraints.cfg

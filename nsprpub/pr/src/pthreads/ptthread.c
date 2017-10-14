@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape Portable Runtime (NSPR).
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
 ** File:            ptthread.c
@@ -51,12 +19,21 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <dlfcn.h>
 
 #ifdef SYMBIAN
 /* In Open C sched_get_priority_min/max do not work properly, so we undefine
  * _POSIX_THREAD_PRIORITY_SCHEDULING here.
  */
 #undef _POSIX_THREAD_PRIORITY_SCHEDULING
+#endif
+
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+#undef _POSIX_THREAD_PRIORITY_SCHEDULING
+#include <sys/resource.h>
+#ifndef HAVE_GETTID
+#define gettid() (syscall(SYS_gettid))
+#endif
 #endif
 
 /*
@@ -74,7 +51,7 @@ static struct _PT_Bookeeping
     PRCondVar *cv;              /* used to signal global things */
     PRInt32 system, user;       /* a count of the two different types */
     PRUintn this_many;          /* number of threads allowed for exit */
-    pthread_key_t key;          /* private private data key */
+    pthread_key_t key;          /* thread private data key */
     PRThread *first, *last;     /* list of threads we know about */
 #if defined(_PR_DCETHREADS) || defined(_POSIX_THREAD_PRIORITY_SCHEDULING)
     PRInt32 minPrio, maxPrio;   /* range of scheduling priorities */
@@ -99,6 +76,21 @@ static PRIntn pt_PriorityMap(PRThreadPriority pri)
     return pt_book.minPrio +
 	    pri * (pt_book.maxPrio - pt_book.minPrio) / PR_PRIORITY_LAST;
 #endif
+}
+#elif defined(_PR_NICE_PRIORITY_SCHEDULING)
+/*
+ * This functions maps higher priorities to lower nice values relative to the
+ * nice value specified in the |nice| parameter. The corresponding relative
+ * adjustments are:
+ *
+ * PR_PRIORITY_LOW    +1
+ * PR_PRIORITY_NORMAL  0
+ * PR_PRIORITY_HIGH   -1
+ * PR_PRIORITY_URGENT -2
+ */
+static int pt_RelativePriority(int nice, PRThreadPriority pri)
+{
+    return nice + (1 - pri);
 }
 #endif
 
@@ -129,6 +121,9 @@ static void *_pt_root(void *arg)
     PRIntn rv;
     PRThread *thred = (PRThread*)arg;
     PRBool detached = (thred->state & PT_THREAD_DETACHED) ? PR_TRUE : PR_FALSE;
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    pid_t tid;
+#endif
 
     /*
      * Both the parent thread and this new thread set thred->id.
@@ -140,6 +135,28 @@ static void *_pt_root(void *arg)
      * write should be safe.
      */
     thred->id = pthread_self();
+
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    /*
+     * We need to know the kernel thread ID of each thread in order to
+     * set its nice value hence we do it here instead of at creation time.
+     */
+    tid = gettid();
+    errno = 0;
+    rv = getpriority(PRIO_PROCESS, 0);
+
+    /* If we cannot read the main thread's nice value don't try to change the
+     * new thread's nice value. */
+    if (errno == 0) {
+        setpriority(PRIO_PROCESS, tid,
+                    pt_RelativePriority(rv, thred->priority));
+    }
+
+    PR_Lock(pt_book.ml);
+    thred->tid = tid;
+    PR_NotifyAllCondVar(pt_book.cv);
+    PR_Unlock(pt_book.ml);
+#endif
 
     /*
     ** DCE Threads can't detach during creation, so do it late.
@@ -255,6 +272,9 @@ static PRThread* pt_AttachThread(void)
 
         thred->priority = PR_PRIORITY_NORMAL;
         thred->id = pthread_self();
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+        thred->tid = gettid();
+#endif
         rv = pthread_setspecific(pt_book.key, thred);
         PR_ASSERT(0 == rv);
 
@@ -675,6 +695,30 @@ PR_IMPLEMENT(void) PR_SetThreadPriority(PRThread *thred, PRThreadPriority newPri
 		if (rv != 0)
 			rv = -1;
     }
+#elif defined(_PR_NICE_PRIORITY_SCHEDULING)
+    PR_Lock(pt_book.ml);
+    while (thred->tid == 0)
+        PR_WaitCondVar(pt_book.cv, PR_INTERVAL_NO_TIMEOUT);
+    PR_Unlock(pt_book.ml);
+
+    errno = 0;
+    rv = getpriority(PRIO_PROCESS, 0);
+
+    /* Do not proceed unless we know the main thread's nice value. */
+    if (errno == 0) {
+        rv = setpriority(PRIO_PROCESS, thred->tid,
+                         pt_RelativePriority(rv, newPri));
+
+        if (rv == -1)
+        {
+            /* We don't set pt_schedpriv to EPERM in case errno == EPERM
+             * because adjusting the nice value might be permitted for certain
+             * ranges but not for others. */
+            PR_LOG(_pr_thread_lm, PR_LOG_MIN,
+                ("PR_SetThreadPriority: setpriority failed with error %d",
+                 errno));
+        }
+    }
 #endif
 
     thred->priority = newPri;
@@ -826,6 +870,8 @@ static void _pt_thread_death_internal(void *arg, PRBool callDestructors)
     PR_Free(thred->privateData);
     if (NULL != thred->errorString)
         PR_Free(thred->errorString);
+    if (NULL != thred->name)
+        PR_Free(thred->name);
     PR_Free(thred->stack);
     if (NULL != thred->syspoll_list)
         PR_Free(thred->syspoll_list);
@@ -844,6 +890,8 @@ void _PR_InitThreads(
 {
     int rv;
     PRThread *thred;
+
+    PR_ASSERT(priority == PR_PRIORITY_NORMAL);
 
 #ifdef _PR_NEED_PTHREAD_INIT
     /*
@@ -891,6 +939,9 @@ void _PR_InitThreads(
     thred->startFunc = NULL;
     thred->priority = priority;
     thred->id = pthread_self();
+#ifdef _PR_NICE_PRIORITY_SCHEDULING
+    thred->tid = gettid();
+#endif
 
     thred->state = (PT_THREAD_DETACHED | PT_THREAD_PRIMORD);
     if (PR_SYSTEM_THREAD == type)
@@ -931,7 +982,6 @@ void _PR_InitThreads(
     PR_ASSERT(0 == rv);
     rv = pthread_setspecific(pt_book.key, thred);
     PR_ASSERT(0 == rv);    
-    PR_SetThreadPriority(thred, priority);
 }  /* _PR_InitThreads */
 
 #ifdef __GNUC__
@@ -1004,6 +1054,8 @@ void _PR_Fini(void)
         rv = pthread_setspecific(pt_book.key, NULL);
         PR_ASSERT(0 == rv);
     }
+    rv = pthread_key_delete(pt_book.key);
+    PR_ASSERT(0 == rv);
     /* TODO: free other resources used by NSPR */
     /* _pr_initialized = PR_FALSE; */
 }  /* _PR_Fini */
@@ -1643,6 +1695,88 @@ PR_IMPLEMENT(void*)PR_GetSP(PRThread *thred)
 }  /* PR_GetSP */
 
 #endif /* !defined(_PR_DCETHREADS) */
+
+PR_IMPLEMENT(PRStatus) PR_SetCurrentThreadName(const char *name)
+{
+    PRThread *thread;
+    size_t nameLen;
+    int result;
+
+    if (!name) {
+        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
+        return PR_FAILURE;
+    }
+
+    thread = PR_GetCurrentThread();
+    if (!thread)
+        return PR_FAILURE;
+
+    PR_Free(thread->name);
+    nameLen = strlen(name);
+    thread->name = (char *)PR_Malloc(nameLen + 1);
+    if (!thread->name)
+        return PR_FAILURE;
+    memcpy(thread->name, name, nameLen + 1);
+
+#if defined(OPENBSD) || defined(FREEBSD)
+    result = pthread_set_name_np(thread->id, name);
+#else /* not BSD */
+    /*
+     * On OSX, pthread_setname_np is only available in 10.6 or later, so test
+     * for it at runtime.  It also may not be available on all linux distros.
+     */
+#if defined(DARWIN)
+    int (*dynamic_pthread_setname_np)(const char*);
+#else
+    int (*dynamic_pthread_setname_np)(pthread_t, const char*);
+#endif
+
+    *(void**)(&dynamic_pthread_setname_np) =
+        dlsym(RTLD_DEFAULT, "pthread_setname_np");
+    if (!dynamic_pthread_setname_np)
+        return PR_SUCCESS;
+
+    /*
+     * The 15-character name length limit is an experimentally determined
+     * length of a null-terminated string that most linux distros and OS X
+     * accept as an argument to pthread_setname_np.  Otherwise the E2BIG
+     * error is returned by the function.
+     */
+#define SETNAME_LENGTH_CONSTRAINT 15
+#define SETNAME_FRAGMENT1_LENGTH (SETNAME_LENGTH_CONSTRAINT >> 1)
+#define SETNAME_FRAGMENT2_LENGTH \
+    (SETNAME_LENGTH_CONSTRAINT - SETNAME_FRAGMENT1_LENGTH - 1)
+    char name_dup[SETNAME_LENGTH_CONSTRAINT + 1];
+    if (nameLen > SETNAME_LENGTH_CONSTRAINT) {
+        memcpy(name_dup, name, SETNAME_FRAGMENT1_LENGTH);
+        name_dup[SETNAME_FRAGMENT1_LENGTH] = '~';
+        /* Note that this also copies the null terminator. */
+        memcpy(name_dup + SETNAME_FRAGMENT1_LENGTH + 1,
+               name + nameLen - SETNAME_FRAGMENT2_LENGTH,
+               SETNAME_FRAGMENT2_LENGTH + 1);
+        name = name_dup;
+    }
+
+#if defined(DARWIN)
+    result = dynamic_pthread_setname_np(name);
+#else
+    result = dynamic_pthread_setname_np(thread->id, name);
+#endif
+#endif /* not BSD */
+
+    if (result) {
+        PR_SetError(PR_UNKNOWN_ERROR, result);
+        return PR_FAILURE;
+    }
+    return PR_SUCCESS;
+}
+
+PR_IMPLEMENT(const char *) PR_GetThreadName(const PRThread *thread)
+{
+    if (!thread)
+        return NULL;
+    return thread->name;
+}
 
 #endif  /* defined(_PR_PTHREADS) || defined(_PR_DCETHREADS) */
 

@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape Portable Runtime (NSPR).
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Steve Streeter (Hewlett-Packard Company)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "primpl.h"
 
@@ -87,8 +54,8 @@
 /*
  * On these platforms, symbols have a leading '_'.
  */
-#if defined(SUNOS4) || (defined(DARWIN) && defined(USE_MACH_DYLD)) \
-    || defined(NEXTSTEP) || defined(XP_OS2) \
+#if (defined(DARWIN) && defined(USE_MACH_DYLD)) \
+    || defined(XP_OS2) \
     || ((defined(OPENBSD) || defined(NETBSD)) && !defined(__ELF__))
 #define NEED_LEADING_UNDERSCORE
 #endif
@@ -142,6 +109,16 @@ static char* _pr_currentLibPath = NULL;
 
 static PRLibrary *pr_LoadLibraryByPathname(const char *name, PRIntn flags);
 
+#ifdef WIN95
+typedef HMODULE (WINAPI *LoadLibraryWFn)(LPCWSTR);
+static HMODULE WINAPI EmulateLoadLibraryW(LPCWSTR);
+static LoadLibraryWFn loadLibraryW = LoadLibraryW;
+#endif
+
+#ifdef WIN32
+static int pr_ConvertUTF16toUTF8(LPCWSTR wname, LPSTR name, int len);
+#endif
+
 /************************************************************************/
 
 #if !defined(USE_DLFCN) && !defined(HAVE_STRERROR)
@@ -174,6 +151,12 @@ void _PR_InitLinker(void)
     PRLibrary *lm = NULL;
 #if defined(XP_UNIX)
     void *h;
+#endif
+
+#ifdef WIN95
+    if (!_pr_useUnicode) {
+        loadLibraryW = EmulateLoadLibraryW;
+    }
 #endif
 
     if (!pr_linker_lock) {
@@ -667,6 +650,25 @@ pr_LoadViaDyld(const char *name, PRLibrary *lm)
 
 #endif /* XP_MACOSX && USE_MACH_DYLD */
 
+#ifdef WIN95
+static HMODULE WINAPI
+EmulateLoadLibraryW(LPCWSTR lpLibFileName)
+{
+    HMODULE h;
+    char nameA[MAX_PATH];
+
+    if (!WideCharToMultiByte(CP_ACP, 0, lpLibFileName, -1,
+                             nameA, sizeof nameA, NULL, NULL)) {
+        return NULL;
+    }
+    /* Perhaps it's better to add a check for characters 
+     * not representable in CP_ACP.
+     */
+    h = LoadLibraryA(nameA);
+    return h;
+}
+#endif /* WIN95 */
+
 /*
 ** Dynamically load a library. Only load libraries once, so scan the load
 ** map first.
@@ -706,12 +708,11 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
             goto unlock;
         }
     }
-    len = WideCharToMultiByte(CP_UTF8, 0, wname, -1, NULL, 0, NULL, NULL);
+    len = pr_ConvertUTF16toUTF8(wname, NULL, 0);
     if (len > MAX_PATH)
         utf8name = utf8name_malloc = PR_Malloc(len);
     if (utf8name == NULL ||
-        !WideCharToMultiByte(CP_UTF8, 0, wname, -1,
-                             utf8name, len, NULL, NULL)) {
+        !pr_ConvertUTF16toUTF8(wname, utf8name, len)) {
         oserr = _MD_ERRNO();
         goto unlock;
     }
@@ -754,15 +755,31 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
     {
     HINSTANCE h;
 
-    h = LoadLibraryExW(wname, NULL,
-                       (flags & PR_LD_ALT_SEARCH_PATH) ?
-                       LOAD_WITH_ALTERED_SEARCH_PATH : 0);
-    if (h == NULL) {
+#ifdef WIN32
+#ifdef WIN95
+    if (flags & PR_LD_PATHW)
+        h = loadLibraryW(wname);
+    else
+        h = LoadLibraryA(name);
+#else
+    if (flags & PR_LD_PATHW)
+        h = LoadLibraryW(wname);
+    else
+        h = LoadLibraryA(name);
+#endif /* WIN95 */
+#else 
+    h = LoadLibrary(name);
+#endif
+    if (h < (HINSTANCE)HINSTANCE_ERROR) {
         oserr = _MD_ERRNO();
         PR_DELETE(lm);
         goto unlock;
     }
+#ifdef WIN32
     lm->name = strdup(utf8name);
+#else
+    lm->name = strdup(name);
+#endif
     lm->dlh = h;
     lm->next = pr_loadmap;
     pr_loadmap = lm;
@@ -983,6 +1000,125 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
     return result;
 }
 
+#ifdef WIN32
+#ifdef WIN95
+/*
+ * CP_UTF8 is not supported by WideCharToMultiByte on Windows 95 so that 
+ * we have to emulate it
+ */
+static PRStatus 
+pr_ConvertSingleCharToUTF8(PRUint32 usv, PRUint16 offset, int bufLen,
+                           int *utf8Len, char * *buf)
+{
+    char* p = *buf;
+    PR_ASSERT(!bufLen || *buf);
+    if (!bufLen) {
+        *utf8Len += offset;
+        return PR_SUCCESS;
+    }
+
+    if (*utf8Len + offset >= bufLen)
+        return PR_FAILURE;
+
+    *utf8Len += offset;
+    if (offset == 1) {
+        *p++ = (char) usv;
+    } else if (offset == 2) {
+        *p++ = (char)0xc0 | (usv >> 6);
+        *p++ = (char)0x80 | (usv & 0x003f);
+    } else if (offset == 3) {
+        *p++ = (char)0xe0 | (usv >> 12);
+        *p++ = (char)0x80 | ((usv >> 6) & 0x003f);
+        *p++ = (char)0x80 | (usv & 0x003f);
+    } else { /* offset = 4 */
+        *p++ = (char)0xf0 | (usv >> 18);
+        *p++ = (char)0x80 | ((usv >> 12) & 0x003f);
+        *p++ = (char)0x80 | ((usv >> 6) & 0x003f);
+        *p++ = (char)0x80 | (usv & 0x003f);
+    }
+
+    *buf = p;
+    return PR_SUCCESS;
+}
+
+static int pr_ConvertUTF16toUTF8(LPCWSTR wname, LPSTR name, int len)
+{
+    LPCWSTR pw = wname;
+    LPSTR p = name;
+    int utf8Len = 0;
+    PRBool highSurrogate = PR_FALSE;
+
+    utf8Len = WideCharToMultiByte(CP_UTF8, 0, wname, -1, name, len, 
+                                  NULL, NULL);
+    /*
+     * Windows 95 and NT 3.51 don't support CP_UTF8.
+     * WideCharToMultiByte(CP_UTF8, ...) fails with the error code
+     * ERROR_INVALID_PARAMETER on Windows 95 and NT 3.51.
+     */
+    if (utf8Len || GetLastError() != ERROR_INVALID_PARAMETER)
+        return utf8Len;
+
+    if (!wname || len < 0 || (len > 0 && !name)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
+    }
+
+    while (*pw) {
+        PRStatus status = PR_SUCCESS;
+        if (highSurrogate) {
+            if (*pw >= (PRUnichar) 0xDC00 && *pw < (PRUnichar) 0xE000) {
+                /* found a matching low surrogate */
+                /* convert a surrogate pair to UCS4 */
+                PRUint32 usv = ((*(pw-1) - (PRUnichar)0xD800) << 10) + 
+                               (*pw - (PRUnichar)0xDC00) + (PRUint32)0x10000;
+                if (pr_ConvertSingleCharToUTF8(usv, 4, len, &utf8Len, &p) ==
+                    PR_FAILURE)
+                    return 0;
+                highSurrogate = PR_FALSE;
+                ++pw;
+                continue;
+            } else {
+                /*
+                 * silently ignore a lone high surrogate
+                 * as is done by WideCharToMultiByte by default
+                 */
+                highSurrogate = PR_FALSE;
+            }
+        }
+        if (*pw <= 0x7f) 
+            status = pr_ConvertSingleCharToUTF8(*pw, 1, len, &utf8Len, &p);
+        else if (*pw <= 0x07ff)
+            status = pr_ConvertSingleCharToUTF8(*pw, 2, len, &utf8Len, &p);
+        else if (*pw < (PRUnichar) 0xD800 || *pw >= (PRUnichar) 0xE000)
+            status = pr_ConvertSingleCharToUTF8(*pw, 3, len, &utf8Len, &p);
+        else if (*pw < (PRUnichar) 0xDC00)
+            highSurrogate = PR_TRUE;
+        /* else */
+        /* silently ignore a lone low surrogate as is done by 
+         * WideCharToMultiByte by default */
+
+        if (status == PR_FAILURE) {
+            SetLastError(ERROR_INSUFFICIENT_BUFFER);
+            return 0;
+        }
+        ++pw;
+    }
+
+    /* if we're concerned with a lone high surrogate,
+     * we have to take care of it here, but we just drop it 
+     */
+    if (len > 0)
+        *p = '\0';
+    return utf8Len + 1;
+}
+#else
+static int pr_ConvertUTF16toUTF8(LPCWSTR wname, LPSTR name, int len)
+{
+    return WideCharToMultiByte(CP_UTF8, 0, wname, -1, name, len, NULL, NULL);
+}
+#endif /* WIN95 */
+#endif /* WIN32 */
+
 /*
 ** Unload a shared library which was loaded via PR_LoadLibrary
 */
@@ -992,12 +1128,19 @@ PR_UnloadLibrary(PRLibrary *lib)
     int result = 0;
     PRStatus status = PR_SUCCESS;
 
-    if ((lib == 0) || (lib->refCount <= 0)) {
+    if (lib == 0) {
         PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
         return PR_FAILURE;
     }
 
     PR_EnterMonitor(pr_linker_lock);
+
+    if (lib->refCount <= 0) {
+        PR_ExitMonitor(pr_linker_lock);
+        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
+        return PR_FAILURE;
+    }
+
     if (--lib->refCount > 0) {
     PR_LOG(_pr_linker_lm, PR_LOG_MIN,
            ("%s decr => %d",
@@ -1360,9 +1503,7 @@ PR_LoadStaticLibrary(const char *name, const PRStaticLinkTable *slt)
 PR_IMPLEMENT(char *)
 PR_GetLibraryFilePathname(const char *name, PRFuncPtr addr)
 {
-#if defined(USE_DLFCN) && !defined(ANDROID) && (defined(SOLARIS) || defined(FREEBSD) \
-        || defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
-        || defined(DARWIN))
+#if defined(USE_DLFCN) && defined(HAVE_DLADDR)
     Dl_info dli;
     char *result;
 

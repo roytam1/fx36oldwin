@@ -43,7 +43,11 @@
 #include "prmon.h"
 #include "prlog.h"
 #include "prthread.h"
+#if defined(XP_MAC)
+#include "pprthred.h"
+#else
 #include "private/pprthred.h"
+#endif
 #include "gcint.h"
 
 /*
@@ -78,6 +82,10 @@ extern PRLogModuleInfo *_pr_msgc_lm;
 static PRStatus PR_CALLBACK
 pr_ScanOneThread(PRThread* t, void** addr, PRUword count, void* closure)
 {
+#if defined(XP_MAC)
+#pragma unused (t, closure)
+#endif
+
     _pr_gcData.processRootBlock(addr, count);
     return PR_SUCCESS;
 }
@@ -261,6 +269,10 @@ PR_IMPLEMENT(void) PR_GetEndFinalizeHook(GCEndFinalizeHook **hook, void **arg)
 #ifdef DEBUG
 #include "prprf.h"
 
+#if defined(WIN16)
+static FILE *tracefile = 0;
+#endif
+
 PR_IMPLEMENT(void) GCTrace(char *fmt, ...)
 {	
     va_list ap;
@@ -269,7 +281,16 @@ PR_IMPLEMENT(void) GCTrace(char *fmt, ...)
     va_start(ap, fmt);
     PR_vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
+#if defined(WIN16)
+    if ( tracefile == 0 )
+    {
+        tracefile = fopen( "xxxGCtr", "w" );
+    }
+    fprintf(tracefile, "%s\n", buf );
+    fflush(tracefile);
+#else
     PR_LOG(_pr_msgc_lm, PR_LOG_ALWAYS, ("%s", buf));
+#endif
 }
 #endif
 

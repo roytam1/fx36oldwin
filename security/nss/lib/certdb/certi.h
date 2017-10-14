@@ -1,42 +1,8 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /*
  * certi.h - private data structures for the certificate library
- *
- * $Id: certi.h,v 1.34 2010/05/21 00:43:51 wtc%google.com Exp $
  */
 #ifndef _CERTI_H_
 #define _CERTI_H_
@@ -77,7 +43,7 @@ struct PreAllocatorStr
     PRSize len;
     void* data;
     PRSize used;
-    PRArenaPool* arena;
+    PLArenaPool* arena;
     PRSize extra;
 };
 
@@ -235,13 +201,20 @@ SECStatus ShutdownCRLCache(void);
 extern char * cert_GetCertificateEmailAddresses(CERTCertificate *cert);
 
 /*
- * These functions are used to map subjectKeyID extension values to certs.
+ * These functions are used to map subjectKeyID extension values to certs
+ * and to keep track of the checks for user certificates in each slot
  */
 SECStatus
 cert_CreateSubjectKeyIDHashTable(void);
 
 SECStatus
 cert_AddSubjectKeyIDMapping(SECItem *subjKeyID, CERTCertificate *cert);
+
+SECStatus
+cert_UpdateSubjectKeyIDSlotCheck(SECItem *slotid, int series);
+
+int
+cert_SubjectKeyIDSlotCheckSeries(SECItem *slotid);
 
 /*
  * Call this function to remove an entry from the mapping table.
@@ -259,11 +232,11 @@ cert_FindDERCertBySubjectKeyID(SECItem *subjKeyID);
 extern int cert_AVAOidTagToMaxLen(SECOidTag tag);
 
 /* Make an AVA, allocated from pool, from OID and DER encoded value */
-extern CERTAVA * CERT_CreateAVAFromRaw(PRArenaPool *pool, 
+extern CERTAVA * CERT_CreateAVAFromRaw(PLArenaPool *pool, 
                                const SECItem * OID, const SECItem * value);
 
 /* Make an AVA from binary input specified by SECItem */
-extern CERTAVA * CERT_CreateAVAFromSECItem(PRArenaPool *arena, SECOidTag kind, 
+extern CERTAVA * CERT_CreateAVAFromSECItem(PLArenaPool *arena, SECOidTag kind, 
                                            int valueType, SECItem *value);
 
 /*
@@ -271,11 +244,11 @@ extern CERTAVA * CERT_CreateAVAFromSECItem(PRArenaPool *arena, SECOidTag kind,
  * Automatically creates the cache object if it doesn't exist yet.
  */
 SECStatus AcquireDPCache(CERTCertificate* issuer, const SECItem* subject,
-                         const SECItem* dp, int64 t, void* wincx,
+                         const SECItem* dp, PRTime t, void* wincx,
                          CRLDPCache** dpcache, PRBool* writeLocked);
 
 /* check if a particular SN is in the CRL cache and return its entry */
-dpcacheStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
+dpcacheStatus DPCache_Lookup(CRLDPCache* cache, const SECItem* sn,
                              CERTCrlEntry** returned);
 
 /* release a DPCache object that was previously acquired */
@@ -287,6 +260,28 @@ void ReleaseDPCache(CRLDPCache* dpcache, PRBool writeLocked);
  * PORT_SetError(); to the appropriate SEC_ERROR value.
  */
 void CERT_MapStanError();
+
+/* Like CERT_VerifyCert, except with an additional argument, flags. The
+ * flags are defined immediately below.
+ */
+SECStatus
+cert_VerifyCertWithFlags(CERTCertDBHandle *handle, CERTCertificate *cert,
+                         PRBool checkSig, SECCertUsage certUsage, PRTime t,
+                         PRUint32 flags, void *wincx, CERTVerifyLog *log);
+
+/* Use the default settings.
+ * cert_VerifyCertWithFlags(..., CERT_VERIFYCERT_USE_DEFAULTS, ...) is
+ * equivalent to CERT_VerifyCert(...);
+ */
+#define CERT_VERIFYCERT_USE_DEFAULTS 0
+
+/* Skip all the OCSP checks during certificate verification, regardless of
+ * the global OCSP settings. By default, certificate |cert| will have its
+ * revocation status checked via OCSP according to the global OCSP settings.
+ *
+ * OCSP checking is always skipped when certUsage is certUsageStatusResponder.
+ */
+#define CERT_VERIFYCERT_SKIP_OCSP 1
 
 /* Interface function for libpkix cert validation engine:
  * cert_verify wrapper. */
@@ -316,7 +311,7 @@ extern SECStatus cert_GetCertType(CERTCertificate *cert);
 extern PRUint32 cert_ComputeCertType(CERTCertificate *cert);
 
 void cert_AddToVerifyLog(CERTVerifyLog *log,CERTCertificate *cert,
-                         unsigned long errorCode, unsigned int depth,
+                         long errorCode, unsigned int depth,
                          void *arg);
 
 /* Insert a DER CRL into the CRL cache, and take ownership of it.
@@ -384,11 +379,25 @@ SECStatus cert_ReleaseNamedCRLCache(NamedCRLCache* ncc);
 
 /* This is private for now.  Maybe shoule be public. */
 CERTGeneralName *
-cert_GetSubjectAltNameList(CERTCertificate *cert, PRArenaPool *arena);
+cert_GetSubjectAltNameList(const CERTCertificate *cert, PLArenaPool *arena);
 
 /* Count DNS names and IP addresses in a list of GeneralNames */
 PRUint32
 cert_CountDNSPatterns(CERTGeneralName *firstName);
+
+/*
+ * returns the trust status of the leaf certificate based on usage.
+ * If the leaf is explicitly untrusted, this function will fail and 
+ * failedFlags will be set to the trust bit value that lead to the failure.
+ * If the leaf is trusted, isTrusted is set to true and the function returns 
+ * SECSuccess. This function does not check if the cert is fit for a 
+ * particular usage.
+ */
+SECStatus
+cert_CheckLeafTrust(CERTCertificate *cert,
+                    SECCertUsage usage, 
+                    unsigned int *failedFlags,
+                    PRBool *isTrusted);
 
 #endif /* _CERTI_H_ */
 

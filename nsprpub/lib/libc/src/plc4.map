@@ -1,0 +1,134 @@
+ plc4
+
+ Timestamp is 59d84fe7 (Sat Oct 07 11:54:15 2017)
+
+ Preferred load address is 10000000
+
+ Start         Length     Name                   Class
+ 0001:00000000 00001df8H .text                   CODE
+ 0002:00000000 0000005cH .idata$5                DATA
+ 0002:00000060 00000275H .rdata                  DATA
+ 0002:000002d8 0000003cH .idata$2                DATA
+ 0002:00000314 00000014H .idata$3                DATA
+ 0002:00000328 0000005cH .idata$4                DATA
+ 0002:00000384 0000012cH .idata$6                DATA
+ 0002:000004b0 000003d9H .edata                  DATA
+ 0003:00000000 00000004H .CRT$XCA                DATA
+ 0003:00000004 00000004H .CRT$XCZ                DATA
+ 0003:00000008 00000004H .CRT$XIA                DATA
+ 0003:0000000c 00000004H .CRT$XIZ                DATA
+ 0003:00000010 00000044H .data                   DATA
+ 0003:00000054 0000001cH .bss                    DATA
+ 0004:00000000 00000058H .rsrc$01                DATA
+ 0004:00000060 00000288H .rsrc$02                DATA
+
+  Address         Publics by Value              Rva+Base     Lib:Object
+
+ 0001:00000000       _libVersionPoint           10001000 f   plvrsion.obj
+ 0001:00000010       _PL_strlen                 10001010 f   strlen.obj
+ 0001:00000060       _PL_strnlen                10001060 f   strlen.obj
+ 0001:000000b0       _PL_strcpy                 100010b0 f   strcpy.obj
+ 0001:00000110       _PL_strncpy                10001110 f   strcpy.obj
+ 0001:00000170       _PL_strncpyz               10001170 f   strcpy.obj
+ 0001:000001f0       _PL_strdup                 100011f0 f   strdup.obj
+ 0001:00000250       _PL_strfree                10001250 f   strdup.obj
+ 0001:00000270       _PL_strndup                10001270 f   strdup.obj
+ 0001:000002e0       _PL_strcasecmp             100012e0 f   strcase.obj
+ 0001:00000380       _PL_strncasecmp            10001380 f   strcase.obj
+ 0001:00000440       _PL_strcasestr             10001440 f   strcase.obj
+ 0001:000004c0       _PL_strcaserstr            100014c0 f   strcase.obj
+ 0001:00000570       _PL_strncasestr            10001570 f   strcase.obj
+ 0001:00000620       _PL_strncaserstr           10001620 f   strcase.obj
+ 0001:000006f0       _PL_strcat                 100016f0 f   strcat.obj
+ 0001:00000740       _PL_strncat                10001740 f   strcat.obj
+ 0001:000007a0       _PL_strcatn                100017a0 f   strcat.obj
+ 0001:00000810       _PL_strcmp                 10001810 f   strcmp.obj
+ 0001:00000890       _PL_strncmp                10001890 f   strcmp.obj
+ 0001:000008c0       _PL_strchr                 100018c0 f   strchr.obj
+ 0001:000008f0       _PL_strrchr                100018f0 f   strchr.obj
+ 0001:00000920       _PL_strnchr                10001920 f   strchr.obj
+ 0001:00000990       _PL_strnrchr               10001990 f   strchr.obj
+ 0001:00000a20       _PL_strpbrk                10001a20 f   strpbrk.obj
+ 0001:00000a50       _PL_strprbrk               10001a50 f   strpbrk.obj
+ 0001:00000ae0       _PL_strnpbrk               10001ae0 f   strpbrk.obj
+ 0001:00000b60       _PL_strnprbrk              10001b60 f   strpbrk.obj
+ 0001:00000c00       _PL_strstr                 10001c00 f   strstr.obj
+ 0001:00000c40       _PL_strrstr                10001c40 f   strstr.obj
+ 0001:00000d00       _PL_strnstr                10001d00 f   strstr.obj
+ 0001:00000dc0       _PL_strnrstr               10001dc0 f   strstr.obj
+ 0001:00000ea0       _PL_strtok_r               10001ea0 f   strtok.obj
+ 0001:00000fb0       _PL_Base64Encode           10001fb0 f   base64.obj
+ 0001:00001220       _PL_Base64Decode           10002220 f   base64.obj
+ 0001:00001670       _PL_FPrintError            10002670 f   plerror.obj
+ 0001:00001700       _PL_PrintError             10002700 f   plerror.obj
+ 0001:00001740       _PL_CreateOptState         10002740 f   plgetopt.obj
+ 0001:00001760       _PL_CreateLongOptState     10002760 f   plgetopt.obj
+ 0001:00001890       _PL_DestroyOptState        10002890 f   plgetopt.obj
+ 0001:000018d0       _PL_GetNextOpt             100028d0 f   plgetopt.obj
+ 0001:00001c8a       __CRT_INIT@12              10002c8a f   MSVCRT:crtdll.obj
+ 0001:00001d35       __DllMainCRTStartup@12     10002d35 f   MSVCRT:crtdll.obj
+ 0001:00001dd2       __initterm                 10002dd2 f   MSVCRT:MSVCRT.dll
+ 0001:00001dd8       _DllMain@12                10002dd8 f   MSVCRT:dllmain.obj
+ 0002:00000000       __imp__DisableThreadLibraryCalls@4 10003000     kernel32:KERNEL32.dll
+ 0002:00000004       \177KERNEL32_NULL_THUNK_DATA 10003004     kernel32:KERNEL32.dll
+ 0002:00000008       __imp___adjust_fdiv        10003008     MSVCRT:MSVCRT.dll
+ 0002:0000000c       __imp___initterm           1000300c     MSVCRT:MSVCRT.dll
+ 0002:00000010       __imp__strstr              10003010     MSVCRT:MSVCRT.dll
+ 0002:00000014       __imp__strpbrk             10003014     MSVCRT:MSVCRT.dll
+ 0002:00000018       __imp__strrchr             10003018     MSVCRT:MSVCRT.dll
+ 0002:0000001c       __imp__strchr              1000301c     MSVCRT:MSVCRT.dll
+ 0002:00000020       __imp__malloc              10003020     MSVCRT:MSVCRT.dll
+ 0002:00000024       __imp__free                10003024     MSVCRT:MSVCRT.dll
+ 0002:00000028       __imp__strncmp             10003028     MSVCRT:MSVCRT.dll
+ 0002:0000002c       \177MSVCRT_NULL_THUNK_DATA 1000302c     MSVCRT:MSVCRT.dll
+ 0002:00000030       __imp__PR_SetError         10003030     nspr4:nspr4.dll
+ 0002:00000034       __imp__PR_Calloc           10003034     nspr4:nspr4.dll
+ 0002:00000038       __imp__PR_GetSpecialFD     10003038     nspr4:nspr4.dll
+ 0002:0000003c       __imp__PR_GetError         1000303c     nspr4:nspr4.dll
+ 0002:00000040       __imp__PR_GetOSError       10003040     nspr4:nspr4.dll
+ 0002:00000044       __imp__PR_ErrorToName      10003044     nspr4:nspr4.dll
+ 0002:00000048       __imp__PR_fprintf          10003048     nspr4:nspr4.dll
+ 0002:0000004c       __imp__PR_Free             1000304c     nspr4:nspr4.dll
+ 0002:00000050       __imp__PR_Malloc           10003050     nspr4:nspr4.dll
+ 0002:00000054       __imp__PR_Assert           10003054     nspr4:nspr4.dll
+ 0002:00000058       \177nspr4_NULL_THUNK_DATA  10003058     nspr4:nspr4.dll
+ 0002:00000060       ??_C@_00A@?$AA@            10003060     plvrsion.obj
+ 0002:00000064       ??_C@_0BM@BDPA@http?3?1?1www?4mozilla?4org?1MPL?1?$AA@ 10003064     plvrsion.obj
+ 0002:00000080       ??_C@_0EM@OGBH@Copyright?5?$CIc?$CJ?51998?5Netscape?5Comm@ 10003080     plvrsion.obj
+ 0002:000000cc       ??_C@_03PHGM@N?1A?$AA@     100030cc     plvrsion.obj
+ 0002:000000d0       ??_C@_0BB@GHFL@Portable?5runtime?$AA@ 100030d0     plvrsion.obj
+ 0002:000000e4       ??_C@_08JIOI@plc4?4dll?$AA@ 100030e4     plvrsion.obj
+ 0002:000000f0       ??_C@_0BE@GNPJ@2017?910?907?511?354?312?$AA@ 100030f0     plvrsion.obj
+ 0002:00000104       ??_C@_0BC@GACO@l?5?$DM?$DN?5PR_INT32_MAX?$AA@ 10003104     strlen.obj
+ 0002:00000118       ??_C@_0DD@BGBC@c?3?1rz_vc6?1RetroZilla?1nsprpub?1lib@ 10003118     strlen.obj
+ 0002:00000250       ??_C@_0EB@KOEG@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef@ 10003250     base64.obj
+ 0002:00000294       ??_C@_0BG@JBML@?$CFs?$CI?$CFd?$CJ?0?5oserror?5?$DN?5?$CFd?6?$AA@ 10003294     plerror.obj
+ 0002:000002ac       ??_C@_0CB@IGDO@?5?$CI?$CFd?$CJOUT?5OF?5RANGE?0?5oserror?5?$DN?5?$CFd?6@ 100032ac     plerror.obj
+ 0002:000002d0       ??_C@_04HPGM@?$CFs?3?5?$AA@ 100032d0     plerror.obj
+ 0002:000002d8       __IMPORT_DESCRIPTOR_nspr4  100032d8     nspr4:nspr4.dll
+ 0002:000002ec       __IMPORT_DESCRIPTOR_MSVCRT 100032ec     MSVCRT:MSVCRT.dll
+ 0002:00000300       __IMPORT_DESCRIPTOR_KERNEL32 10003300     kernel32:KERNEL32.dll
+ 0002:00000314       __NULL_IMPORT_DESCRIPTOR   10003314     nspr4:nspr4.dll
+ 0003:00000000       ___xc_a                    10004000     MSVCRT:cinitexe.obj
+ 0003:00000004       ___xc_z                    10004004     MSVCRT:cinitexe.obj
+ 0003:00000008       ___xi_a                    10004008     MSVCRT:cinitexe.obj
+ 0003:0000000c       ___xi_z                    1000400c     MSVCRT:cinitexe.obj
+ 0003:00000010       _prVersionDescription_libplc4 10004010     plvrsion.obj
+ 0003:00000060       __adjust_fdiv              10004060     <common>
+ 0003:00000064       ___onexitend               10004064     <common>
+ 0003:00000068       ___onexitbegin             10004068     <common>
+ 0003:0000006c       __pRawDllMain              1000406c     <common>
+
+ entry point at        0001:00001d35
+
+ Static symbols
+
+ 0001:00001050       _encode                    10002050 f   base64.obj
+ 0001:000010d0       _encode3to4                100020d0 f   base64.obj
+ 0001:00001160       _encode2to4                10002160 f   base64.obj
+ 0001:000011d0       _encode1to4                100021d0 f   base64.obj
+ 0001:00001350       _decode                    10002350 f   base64.obj
+ 0001:00001400       _decode4to3                10002400 f   base64.obj
+ 0001:00001490       _codetovalue               10002490 f   base64.obj
+ 0001:00001540       _decode3to2                10002540 f   base64.obj
+ 0001:00001600       _decode2to1                10002600 f   base64.obj

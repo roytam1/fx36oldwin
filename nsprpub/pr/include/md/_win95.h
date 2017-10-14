@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape Portable Runtime (NSPR).
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nspr_win95_defs_h___
 #define nspr_win95_defs_h___
@@ -394,6 +362,7 @@ extern PROsfd _MD_Accept(PRFileDesc *fd, PRNetAddr *raddr, PRUint32 *rlen,
 #define _MD_CREATE_THREAD           _PR_MD_CREATE_THREAD
 #define _MD_YIELD                   _PR_MD_YIELD
 #define _MD_SET_PRIORITY            _PR_MD_SET_PRIORITY
+#define _MD_SET_CURRENT_THREAD_NAME _PR_MD_SET_CURRENT_THREAD_NAME
 #define _MD_CLEAN_THREAD            _PR_MD_CLEAN_THREAD
 #define _MD_SETTHREADAFFINITYMASK   _PR_MD_SETTHREADAFFINITYMASK
 #define _MD_GETTHREADAFFINITYMASK   _PR_MD_GETTHREADAFFINITYMASK
@@ -410,9 +379,9 @@ extern PROsfd _MD_Accept(PRFileDesc *fd, PRNetAddr *raddr, PRUint32 *rlen,
 
 /* --- Lock stuff --- */
 #define _PR_LOCK                      _MD_LOCK
-#define _PR_UNLOCK					  _MD_UNLOCK
+#define _PR_UNLOCK                    _MD_UNLOCK
 
-#define _MD_NEW_LOCK(lock)            (InitializeCriticalSection(&((lock)->mutex)),(lock)->notified.length=0,(lock)->notified.link=NULL,PR_SUCCESS)
+#define _MD_NEW_LOCK                  _PR_MD_NEW_LOCK
 #define _MD_FREE_LOCK(lock)           DeleteCriticalSection(&((lock)->mutex))
 #define _MD_LOCK(lock)                EnterCriticalSection(&((lock)->mutex))
 #define _MD_TEST_AND_LOCK(lock)       (EnterCriticalSection(&((lock)->mutex)),0)
@@ -530,7 +499,7 @@ extern DWORD _pr_currentCPUIndex;
 #define _PR_UnlockSched()                0
 
 /* --- Initialization stuff --- */
-#define _MD_INIT_LOCKS()
+#define _MD_INIT_LOCKS                   _PR_MD_INIT_LOCKS
 
 /* --- Stack stuff --- */
 #define _MD_INIT_STACK(stack, redzone)

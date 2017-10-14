@@ -197,7 +197,6 @@ char *sftk_getOldSecmodName(const char *dbname,const char *filename)
 #endif
 #include <fcntl.h>
 
-#ifndef WINCE
 /* same as fopen, except it doesn't use umask, but explicit */
 FILE *
 lfopen(const char *name, const char *mode, int flags)
@@ -216,7 +215,6 @@ lfopen(const char *name, const char *mode, int flags)
     /* file inherits fd */
     return file;
 }
-#endif
 
 #define MAX_LINE_LENGTH 2048
 #define SFTK_DEFAULT_INTERNAL_INIT1 "library= name=\"NSS Internal PKCS #11 Module\" parameters="
@@ -561,11 +559,7 @@ sftkdb_DeleteSecmodDB(SDBType dbType, const char *appName,
     /* do we really want to use streams here */
     fd = fopen(dbname, "r");
     if (fd == NULL) goto loser;
-#ifdef WINCE
-    fd2 = fopen(dbname2, "w+");
-#else
     fd2 = lfopen(dbname2, "w+", O_CREAT|O_RDWR|O_TRUNC);
-#endif
     if (fd2 == NULL) goto loser;
 
     name = sftk_argGetParamValue("name",args);
@@ -628,16 +622,12 @@ sftkdb_DeleteSecmodDB(SDBType dbType, const char *appName,
     } 
     fclose(fd);
     fclose(fd2);
+    /* rename dbname2 to dbname */
     if (found) {
-	/* rename dbname2 to dbname */
 	PR_Delete(dbname);
 	PR_Rename(dbname2,dbname);
-    } else {
-	PR_Delete(dbname2);
     }
     PORT_Free(dbname2);
-    PORT_Free(lib);
-    PORT_Free(name);
     return SECSuccess;
 
 loser:
@@ -651,8 +641,6 @@ loser:
 	PR_Delete(dbname2);
 	PORT_Free(dbname2);
     }
-    PORT_Free(lib);
-    PORT_Free(name);
     return SECFailure;
 }
 
@@ -680,11 +668,7 @@ sftkdb_AddSecmodDB(SDBType dbType, const char *appName,
     /* remove the previous version if it exists */
     (void) sftkdb_DeleteSecmodDB(dbType, appName, filename, dbname, module, rw);
 
-#ifdef WINCE
-    fd = fopen(dbname, "a+");
-#else
     fd = lfopen(dbname, "a+", O_CREAT|O_RDWR|O_APPEND);
-#endif
     if (fd == NULL) {
 	return SECFailure;
     }
@@ -701,9 +685,9 @@ sftkdb_AddSecmodDB(SDBType dbType, const char *appName,
 	    block = sftkdb_DupCat(block, module);
 	    break;
 	}
+	value = sftk_argFetchValue(&keyEnd[1], &count);
 	block = sftkdb_DupnCat(block, module, keyEnd-module+1);
 	if (block == NULL) { goto loser; }
-	value = sftk_argFetchValue(&keyEnd[1], &count);
 	if (value) {
 	    block = sftkdb_DupCat(block, sftk_argStrip(value));
 	    PORT_Free(value);

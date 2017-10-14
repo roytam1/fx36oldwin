@@ -45,10 +45,20 @@
 #include "prinit.h"
 #include "prmon.h"
 #include "prinrval.h"
+#ifndef XP_MAC
 #include "private/pprthred.h"
+#else
+#include "pprthred.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef XP_MAC
+#include "prlog.h"
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+#endif
 
 static PRMonitor *mon;
 static PRInt32 threads, waiting, iterations;
@@ -182,6 +192,11 @@ int main(int argc, char **argv)
     PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 5);
     PR_STDIO_INIT();
     Initialize();
+
+#ifdef XP_MAC
+	SetupMacPrintfLog("gc1.log");
+	debug_mode = 1;
+#endif
 
     /* Spin all of the allocator threads and then wait for them to exit */
     start = PR_IntervalNow();

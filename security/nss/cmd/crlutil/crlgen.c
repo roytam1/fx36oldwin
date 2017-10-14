@@ -1,38 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
 ** crlgen.c
@@ -180,7 +148,7 @@ crlgen_CommitEntryData(PLHashEntry *he, PRIntn i, void *arg)
 
 /* Copy char * datainto allocated in arena SECItem */
 static SECStatus 
-crlgen_SetString(PRArenaPool *arena, const char *dataIn, SECItem *value)
+crlgen_SetString(PLArenaPool *arena, const char *dataIn, SECItem *value)
 {
     SECItem item;
 
@@ -198,7 +166,7 @@ crlgen_SetString(PRArenaPool *arena, const char *dataIn, SECItem *value)
 
 /* Creates CERTGeneralName from parsed data for the Authority Key Extension */
 static CERTGeneralName *
-crlgen_GetGeneralName (PRArenaPool *arena, CRLGENGeneratorData *crlGenData,
+crlgen_GetGeneralName (PLArenaPool *arena, CRLGENGeneratorData *crlGenData,
                        const char *data)
 {
     CERTGeneralName *namesList = NULL;
@@ -346,7 +314,7 @@ crlgen_GetGeneralName (PRArenaPool *arena, CRLGENGeneratorData *crlGenData,
 
 /* Creates CERTGeneralName from parsed data for the Authority Key Extension */
 static CERTGeneralName *
-crlgen_DistinguishedName (PRArenaPool *arena, CRLGENGeneratorData *crlGenData,
+crlgen_DistinguishedName (PLArenaPool *arena, CRLGENGeneratorData *crlGenData,
                           const char *data)
 {
     CERTName *directoryName = NULL;
@@ -397,7 +365,7 @@ crlgen_AddAuthKeyID (CRLGENGeneratorData *crlGenData,
 {
     void *extHandle = NULL;
     CERTAuthKeyID *authKeyID = NULL;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
 
     PORT_Assert(dataArr && crlGenData);
@@ -461,7 +429,7 @@ crlgen_AddIssuerAltNames(CRLGENGeneratorData *crlGenData,
                           const char **dataArr)
 {
     CERTGeneralName *nameList = NULL;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     void *extHandle = NULL;
     SECStatus rv = SECSuccess;
 
@@ -521,7 +489,7 @@ crlgen_AddIssuerAltNames(CRLGENGeneratorData *crlGenData,
 static SECStatus
 crlgen_AddCrlNumber(CRLGENGeneratorData *crlGenData, const char **dataArr)
 {
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
     SECItem encodedItem;
     void *extHandle = crlGenData->crlExtHandle;
     void *dummy;
@@ -572,7 +540,7 @@ crlgen_AddCrlNumber(CRLGENGeneratorData *crlGenData, const char **dataArr)
 /* Creates Cert Revocation Reason code extension. Encodes it and
  * returns as SECItem structure */
 static SECItem*
-crlgen_CreateReasonCode(PRArenaPool *arena, const char **dataArr,
+crlgen_CreateReasonCode(PLArenaPool *arena, const char **dataArr,
                         int *extCode)
 {
     SECItem *encodedItem;
@@ -622,7 +590,7 @@ crlgen_CreateReasonCode(PRArenaPool *arena, const char **dataArr,
 /* Creates Cert Invalidity Date extension. Encodes it and
  * returns as SECItem structure */
 static SECItem*
-crlgen_CreateInvalidityDate(PRArenaPool *arena, const char **dataArr,
+crlgen_CreateInvalidityDate(PLArenaPool *arena, const char **dataArr,
                        int *extCode)
 {
     SECItem *encodedItem;
@@ -666,7 +634,7 @@ crlgen_CreateInvalidityDate(PRArenaPool *arena, const char **dataArr,
 static SECStatus
 crlgen_AddEntryExtension(CRLGENGeneratorData *crlGenData,
                          const char **dataArr, char *extName,
-                         SECItem* (*extCreator)(PRArenaPool *arena,
+                         SECItem* (*extCreator)(PLArenaPool *arena,
                                                 const char **dataArr,
                                                 int *extCode))
 {
@@ -675,7 +643,7 @@ crlgen_AddEntryExtension(CRLGENGeneratorData *crlGenData,
     int extCode = 0;
     PRUint64 lastRange ;
     SECItem *ext = NULL;
-    PRArenaPool *arena = NULL;
+    PLArenaPool *arena = NULL;
 
 
     PORT_Assert(crlGenData &&  dataArr);
@@ -751,7 +719,7 @@ CRLGEN_CommitExtensionsAndEntries(CRLGENGeneratorData *crlGenData)
 {
     int size = 0;
     CERTCrl *crl;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECStatus rv = SECSuccess;
     void *mark;
 
@@ -930,7 +898,7 @@ crlgen_SetTimeField(CRLGENGeneratorData *crlGenData, char *value,
                     PRBool setThisUpdate)
 {
     CERTSignedCrl *signCrl;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTCrl *crl;
     int length = 0;
     SECItem *timeDest = NULL;
@@ -1019,7 +987,7 @@ crlgen_AddCert(CRLGENGeneratorData *crlGenData,
 {
     CERTSignedCrl *signCrl;
     SECItem *certIdItem;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     PRUint64 rangeFrom = 0, rangeTo = 0, i = 0;
     int timeValLength = -1;
     SECStatus rv = SECFailure;
@@ -1111,7 +1079,7 @@ static SECStatus
 crlgen_RmCert(CRLGENGeneratorData *crlGenData, char *certId)
 {
     PRUint64 i = 0;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
 
     PORT_Assert(crlGenData && certId);
     if (!crlGenData || !certId) {

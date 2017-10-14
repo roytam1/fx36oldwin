@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape Portable Runtime (NSPR).
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Masayuki Nakano <masayuki@d-toybox.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Windows 95 IO module
  *
@@ -49,196 +16,6 @@
 #include <wchar.h>
 #endif /* MOZ_UNICODE */
 
-#ifdef WINCE
-
-static HANDLE CreateFileA(LPCSTR lpFileName,
-                          DWORD dwDesiredAccess,
-                          DWORD dwShareMode,
-                          LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-                          DWORD dwCreationDisposition,
-                          DWORD dwFlagsAndAttributes,
-                          HANDLE hTemplateFile)
-{
-    PRUnichar wFileName[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, lpFileName, -1, wFileName, MAX_PATH);
-    return CreateFileW(wFileName, dwDesiredAccess, dwShareMode,
-                       lpSecurityAttributes, dwCreationDisposition,
-                       dwFlagsAndAttributes, hTemplateFile);
-}
-
-/*
- * We seem to call FindFirstFileA and FindNextFileA just to get
- * the file names in a directory listing.  If so, we could define
- * a custom WIN32_FIND_DATAA structure with just the cFileName
- * member, and the CopyFindFileDataW2A function could just
- * copy/convert the cFileName member.
- */
-static void CopyFindFileDataW2A(LPWIN32_FIND_DATAW from,
-                                LPWIN32_FIND_DATAA to)
-{
-    /*
-     * WIN32_FIND_DATAA and WIN32_FIND_DATAW are slightly different.
-     * The dwReserved0, dwReserved1, and cAlternateFileName members
-     * exist only in WIN32_FIND_DATAA.  The dwOID member exists only
-     * in WIN32_FIND_DATAW.
-     */
-    to->dwFileAttributes = from->dwFileAttributes;
-    to->ftCreationTime = from->ftCreationTime;
-    to->ftLastAccessTime = from->ftLastAccessTime;
-    to->ftLastWriteTime = from->ftLastWriteTime;
-    to->nFileSizeHigh = from->nFileSizeHigh;
-    to->nFileSizeLow = from->nFileSizeLow;
-    to->dwReserved0 = 0;
-    to->dwReserved1 = 0;
-    WideCharToMultiByte(CP_ACP, 0, from->cFileName, -1,
-                        to->cFileName, MAX_PATH, NULL, NULL);
-    to->cAlternateFileName[0] = '\0';
-}
-
-static HANDLE FindFirstFileA(LPCSTR lpFileName,
-                             LPWIN32_FIND_DATAA lpFindFileData)
-{
-    PRUnichar wFileName[MAX_PATH];
-    HANDLE hFindFile;
-    WIN32_FIND_DATAW wFindFileData;
-    
-    MultiByteToWideChar(CP_ACP, 0, lpFileName, -1, wFileName, MAX_PATH);
-    hFindFile = FindFirstFileW(wFileName, &wFindFileData);
-    if (hFindFile != INVALID_HANDLE_VALUE) {
-        CopyFindFileDataW2A(&wFindFileData, lpFindFileData);
-    }
-    return hFindFile;
-}
-
-static BOOL FindNextFileA(HANDLE hFindFile,
-                          LPWIN32_FIND_DATAA lpFindFileData)
-{
-    WIN32_FIND_DATAW wFindFileData;
-    BOOL rv;
-
-    rv = FindNextFileW(hFindFile, &wFindFileData);
-    if (rv) {
-        CopyFindFileDataW2A(&wFindFileData, lpFindFileData);
-    }
-    return rv;
-}
-
-static BOOL GetFileAttributesExA(LPCSTR lpFileName,
-                                 GET_FILEEX_INFO_LEVELS fInfoLevelId,
-                                 LPVOID lpFileInformation)
-{
-    PRUnichar wFileName[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, lpFileName, -1, wFileName, MAX_PATH);
-    return GetFileAttributesExW(wFileName, fInfoLevelId, lpFileInformation);
-}
-
-static BOOL DeleteFileA(LPCSTR lpFileName)
-{
-    PRUnichar wFileName[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, lpFileName, -1, wFileName, MAX_PATH);
-    return DeleteFileW(wFileName);
-}
-
-static BOOL MoveFileA(LPCSTR from, LPCSTR to)
-{
-    PRUnichar wFrom[MAX_PATH];
-    PRUnichar wTo[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, from, -1, wFrom, MAX_PATH);
-    MultiByteToWideChar(CP_ACP, 0, to, -1, wTo, MAX_PATH);
-    return MoveFileW(wFrom, wTo);
-}
-
-static BOOL CreateDirectoryA(LPCSTR lpPathName,
-                             LPSECURITY_ATTRIBUTES lpSecurityAttributes)
-{
-    PRUnichar wPathName[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, lpPathName, -1, wPathName, MAX_PATH);
-    return CreateDirectoryW(wPathName, lpSecurityAttributes);
-}
-
-static BOOL RemoveDirectoryA(LPCSTR lpPathName)
-{
-    PRUnichar wPathName[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, lpPathName, -1, wPathName, MAX_PATH);
-    return RemoveDirectoryW(wPathName);
-}
-
-static long GetDriveType(const char *lpRootPathName)
-{
-    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-    return 0; // The drive type cannot be determined.
-}
-
-static DWORD GetFullPathName(const char *lpFileName,
-                             DWORD nBufferLength,
-                             const char *lpBuffer,
-                             const char **lpFilePart)
-{
-    // needs work dft
-    DWORD len = strlen(lpFileName);
-    if (len > nBufferLength)
-        return len;
-  
-    strncpy((char *)lpBuffer, lpFileName, len);
-    ((char *)lpBuffer)[len] = '\0';
-  
-    if (lpFilePart) {
-        char *sep = strrchr(lpBuffer, '\\');
-        if (sep) {
-            sep++; // pass the seperator
-            *lpFilePart = sep;
-        } else {
-            *lpFilePart = lpBuffer;
-        }
-    }
-    return len;
-}
-
-static BOOL LockFile(HANDLE hFile,
-                     DWORD dwFileOffsetLow,
-                     DWORD dwFileOffsetHigh,
-                     DWORD nNumberOfBytesToLockLow,
-                     DWORD nNumberOfBytesToLockHigh)
-{
-    OVERLAPPED overlapped = {0};
-    overlapped.Offset = dwFileOffsetLow;
-    overlapped.OffsetHigh = dwFileOffsetHigh;
-    return LockFileEx(hFile,
-                      LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
-                      0, // reserved
-                      nNumberOfBytesToLockLow,
-                      nNumberOfBytesToLockHigh, &overlapped);
-}
-
-static BOOL UnlockFile(HANDLE hFile,
-                       DWORD dwFileOffsetLow,
-                       DWORD dwFileOffsetHigh,
-                       DWORD nNumberOfBytesToUnlockLow,
-                       DWORD nNumberOfBytesToUnlockHigh)
-{
-    OVERLAPPED overlapped = {0};
-    overlapped.Offset = dwFileOffsetLow;
-    overlapped.OffsetHigh = dwFileOffsetHigh;
-    return UnlockFileEx(hFile,
-                        0, // reserved
-                        nNumberOfBytesToUnlockLow,
-                        nNumberOfBytesToUnlockHigh, &overlapped);
-}
-
-static unsigned char *_mbsdec(const unsigned char *string1,
-                              const unsigned char *string2)
-{
-    // needs work dft
-    return NULL;
-}
-
-static unsigned char *_mbsinc(const unsigned char *inCurrent)
-{
-    // needs work dft
-    return (unsigned char *)(inCurrent + 1);
-}
-
-#endif
 
 struct _MDLock               _pr_ioq_lock;
 
@@ -260,14 +37,22 @@ static DWORD dirAccessTable[] = {
     FILE_GENERIC_EXECUTE
 };
 
-/* Windows CE has GetFileAttributesEx. */
-#ifndef WINCE
+/*
+ * The NSPR epoch (00:00:00 1 Jan 1970 UTC) in FILETIME.
+ * We store the value in a PRTime variable for convenience.
+ * This constant is used by _PR_FileTimeToPRTime().
+ */
+#if defined(__MINGW32__)
+static const PRTime _pr_filetime_offset = 116444736000000000LL;
+#else
+static const PRTime _pr_filetime_offset = 116444736000000000i64;
+#endif
+
 typedef BOOL (WINAPI *GetFileAttributesExFn)(LPCTSTR,
                                              GET_FILEEX_INFO_LEVELS,
                                              LPVOID); 
 static GetFileAttributesExFn getFileAttributesEx;
 static void InitGetFileInfo(void);
-#endif
 
 static void InitUnicodeSupport(void);
 
@@ -310,9 +95,7 @@ _PR_MD_INIT_IO()
 
     _PR_NT_InitSids();
 
-#ifndef WINCE
     InitGetFileInfo();
-#endif
 
     InitUnicodeSupport();
 
@@ -679,14 +462,14 @@ _PR_MD_CLOSE_DIR(_MDDir *d)
     if ( d ) {
         if (FindClose(d->d_hdl)) {
         d->magic = (PRUint32)-1;
-        return 0;
+        return PR_SUCCESS;
 		} else {
 			_PR_MD_MAP_CLOSEDIR_ERROR(GetLastError());
-        	return -1;
+        	return PR_FAILURE;
 		}
     }
     PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-    return -1;
+    return PR_FAILURE;
 }
 
 
@@ -828,11 +611,6 @@ _PR_FileTimeToPRTime(const FILETIME *filetime, PRTime *prtm)
 PRInt32
 _PR_MD_STAT(const char *fn, struct stat *info)
 {
-#ifdef WINCE
-    // needs work. dft
-    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-    return -1;
-#else
     PRInt32 rv;
 
     rv = _stat(fn, (struct _stat *)info);
@@ -864,7 +642,6 @@ _PR_MD_STAT(const char *fn, struct stat *info)
         _PR_MD_MAP_STAT_ERROR(errno);
     }
     return rv;
-#endif
 }
 
 #define _PR_IS_SLASH(ch) ((ch) == '/' || (ch) == '\\')
@@ -968,7 +745,6 @@ IsRootDirectory(char *fn, size_t buflen)
     return rv;
 }
 
-#ifndef WINCE
 /*
  * InitGetFileInfo --
  *
@@ -1069,16 +845,11 @@ GetFileAttributesExFB(const char *fn, WIN32_FIND_DATA *findFileData)
     FindClose(hFindFile);
     return TRUE;
 }
-#endif
 
 PRInt32
 _PR_MD_GETFILEINFO64(const char *fn, PRFileInfo64 *info)
 {
-#ifdef WINCE
-    WIN32_FILE_ATTRIBUTE_DATA findFileData;
-#else
     WIN32_FIND_DATA findFileData;
-#endif
     BOOL rv;
     
     if (NULL == fn || '\0' == *fn) {
@@ -1086,16 +857,12 @@ _PR_MD_GETFILEINFO64(const char *fn, PRFileInfo64 *info)
         return -1;
     }
 
-#ifdef WINCE
-    rv = GetFileAttributesExA(fn, GetFileExInfoStandard, &findFileData);
-#else
     /* GetFileAttributesEx is supported on Win 2K and up. */
     if (getFileAttributesEx) {
         rv = getFileAttributesEx(fn, GetFileExInfoStandard, &findFileData);
     } else {
         rv = GetFileAttributesExFB(fn, &findFileData);
     }
-#endif
     if (!rv) {
         _PR_MD_MAP_OPENDIR_ERROR(GetLastError());
         return -1;
@@ -1183,10 +950,6 @@ _PR_MD_GETOPENFILEINFO(const PRFileDesc *fd, PRFileInfo *info)
 PRStatus
 _PR_MD_SET_FD_INHERITABLE(PRFileDesc *fd, PRBool inheritable)
 {
-#ifdef WINCE
-    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-    return PR_FAILURE;
-#else
     BOOL rv;
 
     /*
@@ -1202,7 +965,6 @@ _PR_MD_SET_FD_INHERITABLE(PRFileDesc *fd, PRBool inheritable)
         return PR_FAILURE;
     }
     return PR_SUCCESS;
-#endif
 } 
 
 void
@@ -1218,9 +980,6 @@ _PR_MD_INIT_FD_INHERITABLE(PRFileDesc *fd, PRBool imported)
 void
 _PR_MD_QUERY_FD_INHERITABLE(PRFileDesc *fd)
 {
-#ifdef WINCE
-    fd->secret->inheritable = _PR_TRI_FALSE;
-#else
     DWORD flags;
 
     PR_ASSERT(_PR_TRI_UNKNOWN == fd->secret->inheritable);
@@ -1231,7 +990,6 @@ _PR_MD_QUERY_FD_INHERITABLE(PRFileDesc *fd)
             fd->secret->inheritable = _PR_TRI_FALSE;
         }
     }
-#endif
 }
 
 PRInt32
@@ -1249,10 +1007,6 @@ _PR_MD_RENAME(const char *from, const char *to)
 PRInt32
 _PR_MD_ACCESS(const char *name, PRAccessHow how)
 {
-#ifdef WINCE
-    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-    return -1;
-#else
 PRInt32 rv;
     switch (how) {
       case PR_ACCESS_WRITE_OK:
@@ -1271,7 +1025,6 @@ PRInt32 rv;
 	if (rv < 0)
 		_PR_MD_MAP_ACCESS_ERROR(errno);
     return rv;
-#endif
 }
 
 PRInt32
@@ -1401,10 +1154,6 @@ PRBool _pr_useUnicode = PR_FALSE;
 
 static void InitUnicodeSupport(void)
 {
-#ifdef WINCE
-    /* The A functions don't even exist in Windows Mobile. */
-    _pr_useUnicode = PR_TRUE;
-#else
     /*
      * The W functions exist on Win9x as stubs that fail with the
      * ERROR_CALL_NOT_IMPLEMENTED error.  We plan to emulate the
@@ -1427,7 +1176,6 @@ static void InitUnicodeSupport(void)
      */
     if (getenv("WINAPI_USE_ANSI"))
         _pr_useUnicode = PR_FALSE;
-#endif
 #endif
 }
 
@@ -1578,20 +1326,20 @@ _PR_MD_READ_DIR_UTF16(_MDDirUTF16 *d, PRIntn flags)
     return NULL;
 }
  
-PRInt32
+PRStatus
 _PR_MD_CLOSE_DIR_UTF16(_MDDirUTF16 *d)
 {
     if ( d ) {
         if (FindClose(d->d_hdl)) {
             d->magic = (PRUint32)-1;
-            return 0;
+            return PR_SUCCESS;
         } else {
             _PR_MD_MAP_CLOSEDIR_ERROR(GetLastError());
-            return -1;
+            return PR_FAILURE;
         }
     }
     PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-    return -1;
+    return PR_FAILURE;
 }
 
 #define _PR_IS_W_SLASH(ch) ((ch) == L'/' || (ch) == L'\\')

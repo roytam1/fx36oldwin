@@ -390,18 +390,3 @@ ER3(SSL_ERROR_RX_UNEXPECTED_NEW_SESSION_TICKET, (SSL_ERROR_BASE + 109),
 
 ER3(SSL_ERROR_RX_MALFORMED_NEW_SESSION_TICKET, (SSL_ERROR_BASE + 110),
 "SSL received a malformed New Session Ticket handshake message.")
-
-ER3(SSL_ERROR_DECOMPRESSION_FAILURE,           (SSL_ERROR_BASE + 111),
-"SSL received a compressed record that could not be decompressed.")
-
-ER3(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED,       (SSL_ERROR_BASE + 112),
-"Renegotiation is not allowed on this SSL socket.")
-
-ER3(SSL_ERROR_UNSAFE_NEGOTIATION,              (SSL_ERROR_BASE + 113),
-"Peer attempted old style (potentially vulnerable) handshake.")
-
-ER3(SSL_ERROR_RX_UNEXPECTED_UNCOMPRESSED_RECORD, (SSL_ERROR_BASE + 114),
-"SSL received an unexpected uncompressed record.")
-
-ER3(SSL_ERROR_WEAK_SERVER_EPHEMERAL_DH_KEY,    (SSL_ERROR_BASE + 115),
-"SSL received a weak ephemeral Diffie-Hellman key in Server Key Exchange handshake message.")
