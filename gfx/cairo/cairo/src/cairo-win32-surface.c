@@ -1657,6 +1657,8 @@ _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_rectangle_int_t *extents)
 {
 #if defined(CAIRO_HAS_WIN32_FONT) && !defined(WINCE)
+	OSVERSIONINFO os;
+
     cairo_win32_surface_t *dst = surface;
 
     WORD glyph_buf_stack[STACK_GLYPH_SIZE];
@@ -1699,6 +1701,10 @@ _cairo_win32_surface_show_glyphs (void			*surface,
 	(dst->base.clip->mode != CAIRO_CLIP_MODE_REGION ||
 	 dst->base.clip->surface != NULL))
 	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+	os.dwOSVersionInfoSize = sizeof (os);
+	GetVersionEx (&os);
+	if (os.dwMajorVersion < 5) return CAIRO_INT_STATUS_UNSUPPORTED;
 
     solid_pattern = (cairo_solid_pattern_t *)source;
     color = RGB(((int)solid_pattern->color.red_short) >> 8,

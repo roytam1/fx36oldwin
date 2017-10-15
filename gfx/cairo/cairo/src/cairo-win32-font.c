@@ -1435,10 +1435,15 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
     cairo_win32_surface_t *surface = (cairo_win32_surface_t *)generic_surface;
     cairo_status_t status;
 
+	OSVERSIONINFO os;
+
+	os.dwOSVersionInfoSize = sizeof (os);
+	GetVersionEx (&os);
+
     if (width == 0 || height == 0)
 	return CAIRO_STATUS_SUCCESS;
 
-    if (_cairo_surface_is_win32 (generic_surface) &&
+    if (os.dwMajorVersion > 4 && _cairo_surface_is_win32 (generic_surface) &&
 	surface->format == CAIRO_FORMAT_RGB24 &&
 	op == CAIRO_OPERATOR_OVER &&
 	_cairo_pattern_is_opaque_solid (pattern)) {
