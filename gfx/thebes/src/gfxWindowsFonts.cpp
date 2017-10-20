@@ -74,6 +74,241 @@
 #include "prinit.h"
 static PRLogModuleInfo *gFontLog = PR_NewLogModule("winfonts");
 
+
+
+#ifndef __SCRIPTCACHE_H
+#define __SCRIPTCACHE_H
+
+#include <windows.h>
+#include <usp10.h>
+#pragma warning(disable:4530) //we don't do exception handling
+#include <list>
+#pragma warning(default:4530)
+
+#define MAXSCRIPTCACHESIZE 10
+
+typedef DWORD FONTUID;
+
+typedef struct
+{
+	FONTUID hFont;
+	SCRIPT_CACHE cache;
+} FONTCACHE, *PFONTCACHE;
+
+using namespace std;
+
+class ScriptCache
+{
+public:
+		static ScriptCache instance;
+		~ScriptCache();
+		SCRIPT_CACHE GetCache(FONTUID hFont);
+		void SetCache(FONTUID hFont, SCRIPT_CACHE newcache);
+		void Lock();
+		void Unlock();
+
+private:
+		list<FONTCACHE> cache;
+		CRITICAL_SECTION cs;
+
+		ScriptCache();
+};
+
+#endif /* __SCRIPTCACHE_H */
+
+/* ScriptCache.cpp */
+ScriptCache ScriptCache::instance;
+
+ScriptCache::ScriptCache()
+{
+	InitializeCriticalSection(&cs);
+}
+
+ScriptCache::~ScriptCache()
+{
+	DeleteCriticalSection(&cs);
+}
+
+SCRIPT_CACHE ScriptCache::GetCache(FONTUID hFont)
+{	
+	list<FONTCACHE>::const_iterator it;
+	for (it = cache.begin(); it != cache.end(); it++)
+	{
+		if (it->hFont == hFont)
+			return it->cache;
+	}
+	return NULL;
+}
+
+void ScriptCache::SetCache(FONTUID hFont,SCRIPT_CACHE newcache)
+{
+	list<FONTCACHE>::iterator it;
+	for (it = cache.begin(); it != cache.end(); it++)
+	{
+		if (it->hFont == hFont)
+			break;
+	}
+	if (it == cache.end())
+	{
+		FONTCACHE fc;
+		fc.hFont = hFont;
+		fc.cache = newcache;
+		cache.push_front(fc);
+	}
+	else
+	{
+		it->cache = newcache;
+		cache.splice(cache.begin(), cache, it);
+	}
+
+	if (cache.size() > MAXSCRIPTCACHESIZE)
+	{
+		list<FONTCACHE>::reference ref = cache.back();
+		ScriptFreeCache(&ref.cache);
+		cache.pop_back();
+	}	
+}
+
+void ScriptCache::Lock()
+{
+	EnterCriticalSection(&cs);
+}
+
+void ScriptCache::Unlock()
+{
+	LeaveCriticalSection(&cs);
+}
+/* ScriptCache.cpp */
+
+#ifndef GGI_MARK_NONEXISTING_GLYPHS
+#define GGI_MARK_NONEXISTING_GLYPHS 1
+#endif
+
+/* KernelEx function ports */
+
+FONTUID GetHDCFontUID(HDC hdc)
+{
+	/*WORD wFont = (WORD)GetCurrentObject(hdc,OBJ_FONT);
+	if (wFont < 0x80) return 0;
+	DWORD* high = (DWORD*)(g_GdiBase + GDIHEAP32BASE + wFont);
+	PGDIOBJ16 fntobj = (PGDIOBJ16)(g_GdiBase + *high);
+	return fntobj->dwNumber;*/
+    return (FONTUID)GetCurrentObject(hdc,OBJ_FONT);
+}
+static int WINAPI GdiGetCodePage( HDC hdc )
+{
+	int charset = GetTextCharset(hdc);
+
+	switch(charset) {
+	case DEFAULT_CHARSET:
+		return GetACP();
+	case OEM_CHARSET:
+		return GetOEMCP();
+	default:
+		{
+			CHARSETINFO csi;
+			if(TranslateCharsetInfo((DWORD*)charset, &csi, TCI_SRCCHARSET))
+				return csi.ciACP;
+			else
+				return CP_ACP;
+		}
+	}
+}
+extern "C" DWORD WINAPI NS_GetGlyphIndicesW( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
+{
+	HRESULT result;
+	if (!hdc || !pgi || (UINT)lpstr<0xFFFFu || c<=0) return GDI_ERROR;
+	ScriptCache::instance.Lock();
+	FONTUID hFont = GetHDCFontUID(hdc);
+	SCRIPT_CACHE cache = ScriptCache::instance.GetCache(hFont);
+	result = ScriptGetCMap(hdc,&cache,lpstr,c,0,pgi);
+	if ( !( result == S_OK || result == S_FALSE ) ) 
+	{
+		ScriptCache::instance.Unlock();
+		return GDI_ERROR;
+	}
+	if ( fl && result == S_FALSE)
+	{		
+		WORD* checkglyph = pgi;
+		int i;
+		SCRIPT_FONTPROPERTIES fpr;
+		fpr.cBytes = sizeof(SCRIPT_FONTPROPERTIES);
+		if (FAILED(ScriptGetFontProperties(hdc,&cache,&fpr)))
+		{
+			ScriptCache::instance.Unlock();
+			return GDI_ERROR;
+		}
+		for (i = 0; i < c; i++)
+		{
+			if (*checkglyph == fpr.wgDefault) *checkglyph = 0xFFFF;
+			checkglyph++;
+		}
+	}
+	ScriptCache::instance.SetCache(hFont,cache); \
+	ScriptCache::instance.Unlock();
+	return c;
+}
+extern "C" DWORD WINAPI NS_GetGlyphIndicesA( HDC hdc,LPCSTR lpstr, int c, LPWORD pgi, DWORD fl)
+{
+	LPWSTR lpstrwide;
+	if (!hdc || !pgi || (UINT)lpstr<0xFFFF || c<=0) return GDI_ERROR;	
+	lpstrwide = (LPWSTR)malloc(c*sizeof(WCHAR));
+	c = MultiByteToWideChar(GdiGetCodePage(hdc),0,lpstr,c,lpstrwide,c);
+	if (!c)
+		return GDI_ERROR;
+
+	return NS_GetGlyphIndicesW(hdc,lpstrwide,c,pgi,fl);
+}
+extern "C" BOOL WINAPI NS_GetTextExtentExPointI( HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize)
+{
+	int i;
+	int sum = 0;	
+	int glyphwidth;	
+	int charextra = GetTextCharacterExtra(hdc);
+	ABC abc;
+	BOOL unfit = FALSE;
+	
+	if ( !hdc || !pgiIn || cgi<=0 || !lpSize)
+	{
+		SetLastError(ERROR_INVALID_PARAMETER);
+		return FALSE;
+	}
+	
+	ScriptCache::instance.Lock();
+	FONTUID hFont = GetHDCFontUID(hdc);
+	SCRIPT_CACHE cache = ScriptCache::instance.GetCache(hFont);
+
+	if (lpnFit) *lpnFit = cgi;
+	for (i = 0; i < cgi; i++)
+	{
+		if ( ScriptGetGlyphABCWidth(hdc,&cache,*pgiIn,&abc) != S_OK ) break;
+		glyphwidth = abc.abcA + abc.abcB + abc.abcC + charextra;
+		sum += glyphwidth;
+		if ( !unfit )
+		{
+			unfit = ( sum > nMaxExtent );
+			if (unfit)
+			{
+				if ( lpnFit ) *lpnFit = i;
+			}
+			else
+			{
+				if ( alpDx ) *alpDx++ = sum;
+			}			
+		}
+		pgiIn++;
+	}
+	lpSize->cx = sum;	
+
+	ScriptCacheGetHeight(hdc,&cache,&lpSize->cy);
+	ScriptCache::instance.SetCache(hFont,cache);
+	ScriptCache::instance.Unlock();
+
+	return TRUE;
+}
+
+/* KernelEx port ends */
+
 #define ROUND(x) floor((x) + 0.5)
 
 BYTE 
@@ -353,29 +588,6 @@ FontFamily::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
 }
 
 
-#ifndef GGI_MARK_NONEXISTING_GLYPHS
-#define GGI_MARK_NONEXISTING_GLYPHS 1
-#endif
-
-DWORD WINAPI NS_GetGlyphIndicesA( HDC hdc,LPCSTR lpstr, int c, LPWORD pgi, DWORD fl)
-{
-  memcpy(pgi,lpstr,c);
-  return c;
-
-}
-DWORD WINAPI NS_GetGlyphIndicesW( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
-{
-    for (int i = 0; i < c; i++)
-    {
-        char asciiChar = (char) lpstr[i];
-        pgi[i] = asciiChar;
-    }
-    return c;
-}
-BOOL WINAPI NS_GetTextExtentExPointI( HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize)
-{
-	return GetTextExtentExPointA(hdc, (LPCTSTR)pgiIn, cgi, nMaxExtent, lpnFit, alpDx, lpSize);
-}
 // from t2embapi.h, included in Platform SDK 6.1 but not 6.0
 
 #ifndef __t2embapi__

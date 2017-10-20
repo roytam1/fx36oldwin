@@ -74,7 +74,11 @@ static GetFontUnicodeRangesProc GetFontUnicodeRangesPtr = NULL;
 static GetGlyphIndicesWProc GetGlyphIndicesWPtr = NULL;
 static int GetFontUnicodeRangesPtrSearched = 0;
 
-DWORD WINAPI cairo_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
+/* defined in gfx\thebes\src\gfx\thebes\src\gfxWindowsFonts.cpp */
+DWORD WINAPI NS_GetGlyphIndicesW( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
+
+
+/*DWORD WINAPI cairo_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
 {
     int i;
     char asciiChar;
@@ -84,7 +88,7 @@ DWORD WINAPI cairo_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD
         pgi[i] = asciiChar;
     }
     return c;
-}
+}*/
 
 void cairo_SetupFPtrs()
 {
@@ -94,7 +98,7 @@ void cairo_SetupFPtrs()
         fontlib = LoadLibraryW(L"gdi32.dll");
         GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
         GetFontUnicodeRangesPtr = (GetFontUnicodeRangesProc) GetProcAddress(fontlib, "GetFontUnicodeRanges");
-        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = cairo_GetGlyphIndicesW_stub;
+        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = NS_GetGlyphIndicesW;
     }
 }
 
@@ -1435,15 +1439,15 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
     cairo_win32_surface_t *surface = (cairo_win32_surface_t *)generic_surface;
     cairo_status_t status;
 
-	OSVERSIONINFO os;
+	/*OSVERSIONINFO os;
 
 	os.dwOSVersionInfoSize = sizeof (os);
-	GetVersionEx (&os);
+	GetVersionEx (&os);*/
 
     if (width == 0 || height == 0)
 	return CAIRO_STATUS_SUCCESS;
 
-    if (os.dwMajorVersion > 4 && _cairo_surface_is_win32 (generic_surface) &&
+    if (/*os.dwMajorVersion > 4 &&*/ _cairo_surface_is_win32 (generic_surface) &&
 	surface->format == CAIRO_FORMAT_RGB24 &&
 	op == CAIRO_OPERATOR_OVER &&
 	_cairo_pattern_is_opaque_solid (pattern)) {
