@@ -361,7 +361,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_WindowTitleHeight:
         aMetric = ::GetSystemMetrics(SM_CYCAPTION);
         break;
-#ifndef WINCE
+#if 1//ndef WINCE
     case eMetric_WindowBorderWidth:
         aMetric = ::GetSystemMetrics(SM_CXFRAME);
         break;
@@ -431,7 +431,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_SubmenuDelay:
         // This will default to the Windows' default
         // (400ms) on error.
-#ifndef WINCE
+#if 1//ndef WINCE
         aMetric = GetSystemParam(SPI_GETMENUSHOWDELAY, 400);
 #else
         aMetric = 400;
@@ -441,7 +441,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         // we want XUL popups to be able to overlap the task bar.
         aMetric = 1;
         break;
-#ifndef WINCE
+#if 1//ndef WINCE
     case eMetric_DragThresholdX:
         // The system metric is the number of pixels at which a drag should
         // start.  Our look and feel metric is the number of pixels you can
@@ -452,6 +452,8 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_DragThresholdY:
         aMetric = ::GetSystemMetrics(SM_CYDRAG) - 1;
         break;
+#endif
+#ifndef WINCE
     case eMetric_UseAccessibilityTheme:
         // High contrast is a misnomer under Win32 -- any theme can be used with it, 
         // e.g. normal contrast with large fonts, low contrast, etc.

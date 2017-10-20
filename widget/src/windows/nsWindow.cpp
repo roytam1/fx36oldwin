@@ -1118,7 +1118,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
     if (bState) {
       if (!wasVisible && mWindowType == eWindowType_toplevel) {
         switch (mSizeMode) {
-#ifdef WINCE
+#if 0//def WINCE
           case nsSizeMode_Fullscreen:
             ::SetForegroundWindow(mWnd);
             ::ShowWindow(mWnd, SW_SHOWMAXIMIZED);
