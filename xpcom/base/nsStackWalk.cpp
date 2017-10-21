@@ -637,6 +637,29 @@ WalkStackThread(void* aData)
     return 0;
 }
 
+typedef DWORD (WINAPI * SIGNALOBJECTANDWAIT) (HANDLE, HANDLE, DWORD, BOOL );
+
+static SIGNALOBJECTANDWAIT pSignalObjectAndWait = NULL;
+
+DWORD WINAPI NS_SignalObjectAndWait_wrapper(HANDLE hObjectToSignal, HANDLE hObjectToWaitOn, DWORD dwMilliseconds, BOOL bAlertable)
+{
+    ReleaseMutex(hObjectToSignal);
+    return WaitForSingleObject(hObjectToWaitOn, dwMilliseconds);
+}
+
+
+DWORD WINAPI NS_SignalObjectAndWait(HANDLE hObjectToSignal, HANDLE hObjectToWaitOn, DWORD dwMilliseconds, BOOL bAlertable)
+{
+    pSignalObjectAndWait = (SIGNALOBJECTANDWAIT)GetProcAddress( GetModuleHandle( "KERNEL32" ), "SignalObjectAndWait" );
+    if( (pSignalObjectAndWait != NULL)
+        && (pSignalObjectAndWait(NULL, NULL, 0, 0) == WAIT_FAILED) ) {
+        /* Function is fine, do nothing */
+    } else {
+        pSignalObjectAndWait = NS_SignalObjectAndWait_wrapper;
+    }
+    return pSignalObjectAndWait(hObjectToSignal, hObjectToWaitOn, dwMilliseconds, bAlertable);
+}
+
 /**
  * Walk the stack, translating PC's found into strings and recording the
  * chain in aBuffer. For this to work properly, the DLLs must be rebased
@@ -689,7 +712,7 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
 
     ::PostThreadMessage(gStackWalkThread, WM_USER, 0, (LPARAM)&data);
 
-    walkerReturn = ::SignalObjectAndWait(data.eventStart,
+    walkerReturn = NS_SignalObjectAndWait(data.eventStart,
                        data.eventEnd, INFINITE, FALSE);
     if (walkerReturn != WAIT_OBJECT_0)
         PrintError("SignalObjectAndWait (1)");
@@ -698,7 +721,7 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
         data.pc_size = data.pc_count;
         data.pc_count = 0;
         ::PostThreadMessage(gStackWalkThread, WM_USER, 0, (LPARAM)&data);
-        walkerReturn = ::SignalObjectAndWait(data.eventStart,
+        walkerReturn = NS_SignalObjectAndWait(data.eventStart,
                            data.eventEnd, INFINITE, FALSE);
         if (walkerReturn != WAIT_OBJECT_0)
             PrintError("SignalObjectAndWait (2)");

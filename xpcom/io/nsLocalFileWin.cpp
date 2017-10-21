@@ -1480,7 +1480,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     if (!copyOK)  // CopyFile and MoveFileEx return zero at failure.
         rv = ConvertWinError(GetLastError());
 
-#ifndef WINCE
+#if 0//ndef WINCE
     else if (move) // Set security permissions to inherit from parent.
     {
         PACL pOldDACL = NULL;

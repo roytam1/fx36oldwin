@@ -432,8 +432,8 @@ nsNotifyAddrListener::CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter)
         in_addr->sin_addr.S_un.S_un_b.s_b3 == 0 &&
         in_addr->sin_addr.S_un.S_un_b.s_b4 == 1);
 
-    if (isGateway)
-      isGateway = CheckICSStatus(aAdapter->FriendlyName);
+    /*if (isGateway)
+      isGateway = CheckICSStatus(aAdapter->FriendlyName);*/
 
     return isGateway;
 }
@@ -441,6 +441,9 @@ nsNotifyAddrListener::CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter)
 BOOL
 nsNotifyAddrListener::CheckICSStatus(PWCHAR aAdapterName)
 {
+#if 1
+        return FALSE;
+#else
     InitNetshellLibrary();
 
     // This method enumerates all privately shared connections and checks if some
@@ -520,6 +523,7 @@ nsNotifyAddrListener::CheckICSStatus(PWCHAR aAdapterName)
     CoUninitialize();
 
     return isICSGatewayAdapter;
+#endif
 }
 
 DWORD
