@@ -846,7 +846,7 @@ HBITMAP nsWindowGfx::DataToBitmap(PRUint8* aImageData,
                                   PRUint32 aHeight,
                                   PRUint32 aDepth)
 {
-#if 1//ndef WINCE
+#if 0//ndef WINCE
   HDC dc = ::GetDC(NULL);
 
   if (aDepth == 32 && IsCursorTranslucencySupported()) {
