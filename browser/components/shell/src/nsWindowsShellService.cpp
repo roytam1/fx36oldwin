@@ -313,7 +313,7 @@ nsWindowsShellService::IsDefaultBrowser(PRBool aStartupCheck,
   if (!::GetModuleFileNameW(0, exePath, MAX_BUF))
     return NS_ERROR_FAILURE;
 
-#ifndef WINCE
+#if 0//ndef WINCE
   // Convert the path to a long path since GetModuleFileNameW returns the path
   // that was used to launch Firefox which is not necessarily a long path.
   if (!::GetLongPathNameW(exePath, exePath, MAX_BUF))
