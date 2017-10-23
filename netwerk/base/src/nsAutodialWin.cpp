@@ -561,7 +561,7 @@ PRBool nsAutodial::IsAutodialServiceRunning()
     SC_HANDLE hService = 
       OpenServiceW(hSCManager, L"RasAuto", SERVICE_QUERY_STATUS);
 
-    if (hSCManager == nsnull)
+    if (hService == nsnull)
     {
         LOGE(("Autodial: failed to open RasAuto service."));
         return PR_FALSE;
