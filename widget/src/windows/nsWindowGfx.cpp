@@ -525,7 +525,7 @@ DDRAW_FAILED:
     nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
     thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
-#if 0//def WINCE
+#if 1//def WINCE
     thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
 #endif
 
@@ -846,7 +846,7 @@ HBITMAP nsWindowGfx::DataToBitmap(PRUint8* aImageData,
                                   PRUint32 aHeight,
                                   PRUint32 aDepth)
 {
-#if 0//ndef WINCE
+#if 1//ndef WINCE
   HDC dc = ::GetDC(NULL);
 
   if (aDepth == 32 && IsCursorTranslucencySupported()) {

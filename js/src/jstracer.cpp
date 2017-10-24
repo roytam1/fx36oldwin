@@ -6977,7 +6977,7 @@ CheckForSSE2()
         return (!strcmp(c, "true") ||
                 !strcmp(c, "1") ||
                 !strcmp(c, "yes"));
-
+    return 0;
     int features = 0;
 #if defined _MSC_VER
     __asm

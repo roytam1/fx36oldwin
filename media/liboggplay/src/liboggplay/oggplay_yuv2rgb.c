@@ -180,7 +180,7 @@ YUV_CONVERT(yuv444_to_argb_vanilla, CONVERT(VANILLA_ARGB_OUT), VANILLA_ARGB_OUT,
 #endif
 #include "x86/oggplay_yuv2rgb_x86.c"
 #if defined(_MSC_VER) || defined(ATTRIBUTE_ALIGNED_MAX) && ATTRIBUTE_ALIGNED_MAX >= 16 
-#define ENABLE_SSE2
+//#define ENABLE_SSE2
 #endif
 #elif defined(__ppc__) || defined(__ppc64__)
 #define ENABLE_ALTIVEC

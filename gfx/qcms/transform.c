@@ -1387,7 +1387,8 @@ qcms_bool compute_precache(struct curveType *trc, uint8_t *output)
 // mozilla/jpeg)
  // -------------------------------------------------------------------------
 #if defined(_M_IX86) && defined(_MSC_VER)
-#define HAS_CPUID
+/* Old NT can't run SSE opcodes */
+#undef HAS_CPUID
 /* Get us a CPUID function. Avoid clobbering EBX because sometimes it's the PIC
    register - I'm not sure if that ever happens on windows, but cpuid isn't
    on the critical path so we just preserve the register to be safe and to be

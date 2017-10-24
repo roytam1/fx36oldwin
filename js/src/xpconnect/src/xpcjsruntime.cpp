@@ -1077,7 +1077,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     mJSRuntime = JS_NewRuntime(32L * 1024L * 1024L); // pref ?
     if(mJSRuntime)
     {
-printf("mJSRuntime->gcLock=%08x\n",mJSRuntime->gcLock);
         // Unconstrain the runtime's threshold on nominal heap size, to avoid
         // triggering GC too often if operating continuously near an arbitrary
         // finite threshold (0xffffffff is infinity for uint32 parameters).

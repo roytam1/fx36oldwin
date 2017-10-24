@@ -382,15 +382,24 @@ gfxWindowsPlatform::UpdateFontList()
     CancelLoader();
 #ifdef MOZ_FT2_FONTS
     FindFonts();
-#else    
+#else
     LOGFONTW logFont;
     logFont.lfCharSet = DEFAULT_CHARSET;
     logFont.lfFaceName[0] = 0;
     logFont.lfPitchAndFamily = 0;
 
+    DWORD oldFontsCount = mFonts.Count();
     // Use the screen DC here.. should we use something else for printing?
     HDC dc = ::GetDC(nsnull);
     EnumFontFamiliesExW(dc, &logFont, (FONTENUMPROCW)gfxWindowsPlatform::FontEnumProc, (LPARAM)&mFonts, 0);
+
+    /*
+     * msdn.microsoft.com/library states that
+     * EnumFontFamiliesExW is only on NT4+
+     */
+    if (mFonts.Count() - oldFontsCount < 1)
+      EnumFontFamiliesW(dc, nsnull, (FONTENUMPROCW)gfxWindowsPlatform::FontEnumProc, (LPARAM)&mFonts);
+
     ::ReleaseDC(nsnull, dc);
 #endif
     // initialize the cmap loading process after font list has been initialized
@@ -561,6 +570,13 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
     aAborted = !EnumFontFamiliesExW(dc, &logFont,
                                     (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc,
                                     (LPARAM)&data, 0);
+    /*
+     * msdn.microsoft.com/library states that
+     * EnumFontFamiliesExW is only on NT4+
+     */
+    if (data.mFoundCount == 0)
+      aAborted = !EnumFontFamiliesW(dc, nsnull, (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc, (LPARAM)&data);
+
     if (data.mFoundCount == 0)
         mNonExistingFonts.AppendElement(keyName);
     ::ReleaseDC(nsnull, dc);
@@ -810,6 +826,12 @@ FindFullName(nsStringHashKey::KeyType aKey,
         data->mFamilyName.Assign(family);
 
         EnumFontFamiliesExW(hdc, &logFont, (FONTENUMPROCW)FindFullNameForFace, (LPARAM)data, 0);
+    /*
+     * msdn.microsoft.com/library states that
+     * EnumFontFamiliesExW is only on NT4+
+     */
+    if (!data->mFound)
+      EnumFontFamiliesW(hdc, nsnull, (FONTENUMPROCW)FindFullNameForFace, (LPARAM)data);
 #endif
     }
 

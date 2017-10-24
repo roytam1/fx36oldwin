@@ -516,6 +516,12 @@ FontFamily::FindStyleVariations()
     faspd.ff = this;
 
     EnumFontFamiliesExW(hdc, &logFont, (FONTENUMPROCW)FontFamily::FamilyAddStylesProc, (LPARAM)&faspd, 0);
+    /*
+     * msdn.microsoft.com/library states that
+     * EnumFontFamiliesExW is only on NT4+
+     */
+    if (mAvailableFonts.Length() == 0)
+      EnumFontFamiliesW(hdc, nsnull, (FONTENUMPROCW)FontFamily::FamilyAddStylesProc, (LPARAM)&faspd);
 #ifdef DEBUG
     if (mAvailableFonts.Length() == 0) {
         char msgBuf[256];

@@ -102,12 +102,12 @@ static ogg_uint32_t oc_parse_intel_flags(ogg_uint32_t _edx,ogg_uint32_t _ecx){
   /*If there isn't even MMX, give up.*/
   if(!(_edx&0x00800000))return 0;
   flags=OC_CPU_X86_MMX;
-  if(_edx&0x02000000)flags|=OC_CPU_X86_MMXEXT|OC_CPU_X86_SSE;
+  /*if(_edx&0x02000000)flags|=OC_CPU_X86_MMXEXT|OC_CPU_X86_SSE;
   if(_edx&0x04000000)flags|=OC_CPU_X86_SSE2;
   if(_ecx&0x00000001)flags|=OC_CPU_X86_PNI;
   if(_ecx&0x00000100)flags|=OC_CPU_X86_SSSE3;
   if(_ecx&0x00080000)flags|=OC_CPU_X86_SSE4_1;
-  if(_ecx&0x00100000)flags|=OC_CPU_X86_SSE4_2;
+  if(_ecx&0x00100000)flags|=OC_CPU_X86_SSE4_2;*/
   return flags;
 }
 
@@ -116,11 +116,11 @@ static ogg_uint32_t oc_parse_amd_flags(ogg_uint32_t _edx,ogg_uint32_t _ecx){
   /*If there isn't even MMX, give up.*/
   if(!(_edx&0x00800000))return 0;
   flags=OC_CPU_X86_MMX;
-  if(_edx&0x00400000)flags|=OC_CPU_X86_MMXEXT;
+  /*if(_edx&0x00400000)flags|=OC_CPU_X86_MMXEXT;
   if(_edx&0x80000000)flags|=OC_CPU_X86_3DNOW;
   if(_edx&0x40000000)flags|=OC_CPU_X86_3DNOWEXT;
   if(_ecx&0x00000040)flags|=OC_CPU_X86_SSE4A;
-  if(_ecx&0x00000800)flags|=OC_CPU_X86_SSE5;
+  if(_ecx&0x00000800)flags|=OC_CPU_X86_SSE5;*/
   return flags;
 }
 
