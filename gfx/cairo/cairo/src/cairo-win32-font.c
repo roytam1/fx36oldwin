@@ -73,32 +73,29 @@ typedef DWORD ( WINAPI *GetGlyphIndicesWProc ) (HDC hdc, LPCWSTR lpstr, int c,  
 static GetFontUnicodeRangesProc GetFontUnicodeRangesPtr = NULL;
 static GetGlyphIndicesWProc GetGlyphIndicesWPtr = NULL;
 static int GetFontUnicodeRangesPtrSearched = 0;
+static int isOldNT = 0;
 
 /* defined in gfx\thebes\src\gfx\thebes\src\gfxWindowsFonts.cpp */
 DWORD WINAPI NS_GetGlyphIndicesW( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
 
-
-/*DWORD WINAPI cairo_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
-{
-    int i;
-    char asciiChar;
-    for (i = 0; i < c; i++)
-    {
-        asciiChar = (char) lpstr[i];
-        pgi[i] = asciiChar;
-    }
-    return c;
-}*/
+DWORD WINAPI NS_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
 
 void cairo_SetupFPtrs()
 {
     HMODULE fontlib;
+    OSVERSIONINFO os;
+
     if(!GetFontUnicodeRangesPtrSearched) {
+        os.dwOSVersionInfoSize = sizeof (os);
+        GetVersionEx (&os);
+        if (os.dwMajorVersion < 4) isOldNT = 1;
+
         GetFontUnicodeRangesPtrSearched = 1;
         fontlib = LoadLibraryW(L"gdi32.dll");
         GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
         GetFontUnicodeRangesPtr = (GetFontUnicodeRangesProc) GetProcAddress(fontlib, "GetFontUnicodeRanges");
-        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = NS_GetGlyphIndicesW;
+
+        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = (!isOldNT) ? NS_GetGlyphIndicesW : NS_GetGlyphIndicesW_stub;
     }
 }
 
@@ -1199,6 +1196,7 @@ _flush_glyphs (cairo_glyph_state_t *state)
     int dx = 0;
     WCHAR * elements;
     int * dx_elements;
+    UINT fuOptions = 0;
 
     status = _cairo_array_append (&state->dx, &dx);
     if (status)
@@ -1206,9 +1204,12 @@ _flush_glyphs (cairo_glyph_state_t *state)
 
     elements = _cairo_array_index (&state->glyphs, 0);
     dx_elements = _cairo_array_index (&state->dx, 0);
+
+	if(!isOldNT) fuOptions = ETO_GLYPH_INDEX;
+
     if (!ExtTextOutW (state->hdc,
 		      state->start_x, state->last_y,
-		      ETO_GLYPH_INDEX,
+		      fuOptions,
 		      NULL,
 		      elements,
 		      state->glyphs.num_elements,

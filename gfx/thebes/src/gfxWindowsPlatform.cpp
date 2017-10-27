@@ -575,7 +575,7 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
      * EnumFontFamiliesExW is only on NT4+
      */
     if (data.mFoundCount == 0)
-      aAborted = !EnumFontFamiliesW(dc, nsnull, (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc, (LPARAM)&data);
+      aAborted = !EnumFontFamiliesW(dc, logFont.lfFaceName, (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc, (LPARAM)&data);
 
     if (data.mFoundCount == 0)
         mNonExistingFonts.AppendElement(keyName);
@@ -831,7 +831,7 @@ FindFullName(nsStringHashKey::KeyType aKey,
      * EnumFontFamiliesExW is only on NT4+
      */
     if (!data->mFound)
-      EnumFontFamiliesW(hdc, nsnull, (FONTENUMPROCW)FindFullNameForFace, (LPARAM)data);
+      EnumFontFamiliesW(hdc, logFont.lfFaceName, (FONTENUMPROCW)FindFullNameForFace, (LPARAM)data);
 #endif
     }
 

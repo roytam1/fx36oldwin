@@ -74,6 +74,24 @@
 #include "prinit.h"
 static PRLogModuleInfo *gFontLog = PR_NewLogModule("winfonts");
 
+/* Function pointers */
+
+typedef HANDLE( WINAPI *AddFontMemResourceExProc ) (PVOID pbFont, DWORD cbFont, PVOID pdv, DWORD *pcFonts);
+typedef LONG( WINAPI *RemoveFontMemResourceExProc ) (HANDLE fh);
+
+typedef DWORD ( WINAPI *GetGlyphIndicesAProc ) (HDC hdc,LPCSTR lpstr, int c, LPWORD pgi, DWORD fl);
+typedef DWORD ( WINAPI *GetGlyphIndicesWProc ) (HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
+typedef BOOL ( WINAPI *GetTextExtentExPointIProc ) (HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize);
+
+static GetGlyphIndicesAProc GetGlyphIndicesAPtr = nsnull;
+static GetGlyphIndicesWProc GetGlyphIndicesWPtr = nsnull;
+static GetTextExtentExPointIProc GetTextExtentExPointIPtr = nsnull;
+
+static AddFontMemResourceExProc AddFontMemResourceExPtr = nsnull;
+static RemoveFontMemResourceExProc RemoveFontMemResourceExPtr = nsnull;
+
+/* Function pointers ends */
+
 
 
 #ifndef __SCRIPTCACHE_H
@@ -257,7 +275,7 @@ extern "C" DWORD WINAPI NS_GetGlyphIndicesA( HDC hdc,LPCSTR lpstr, int c, LPWORD
 	if (!c)
 		return GDI_ERROR;
 
-	return NS_GetGlyphIndicesW(hdc,lpstrwide,c,pgi,fl);
+	return GetGlyphIndicesWPtr ? GetGlyphIndicesWPtr(hdc,lpstrwide,c,pgi,fl) : NS_GetGlyphIndicesW(hdc,lpstrwide,c,pgi,fl);
 }
 extern "C" BOOL WINAPI NS_GetTextExtentExPointI( HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize)
 {
@@ -308,6 +326,19 @@ extern "C" BOOL WINAPI NS_GetTextExtentExPointI( HDC hdc, LPWORD pgiIn, int cgi,
 }
 
 /* KernelEx port ends */
+
+/* stub */
+extern "C" DWORD WINAPI NS_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl)
+{
+    int i;
+    for (i = 0; i < c; i++)
+    {
+        pgi[i] = (WORD) lpstr[i];
+    }
+    return c;
+}
+/* stub ends */
+
 
 #define ROUND(x) floor((x) + 0.5)
 
@@ -521,7 +552,7 @@ FontFamily::FindStyleVariations()
      * EnumFontFamiliesExW is only on NT4+
      */
     if (mAvailableFonts.Length() == 0)
-      EnumFontFamiliesW(hdc, nsnull, (FONTENUMPROCW)FontFamily::FamilyAddStylesProc, (LPARAM)&faspd);
+      EnumFontFamiliesW(hdc, logFont.lfFaceName, (FONTENUMPROCW)FontFamily::FamilyAddStylesProc, (LPARAM)&faspd);
 #ifdef DEBUG
     if (mAvailableFonts.Length() == 0) {
         char msgBuf[256];
@@ -635,27 +666,17 @@ typedef LONG( WINAPI *TTLoadEmbeddedFontProc ) (HANDLE* phFontReference, ULONG u
 typedef LONG( WINAPI *TTDeleteEmbeddedFontProc ) (HANDLE hFontReference, ULONG ulFlags, ULONG* pulStatus);
 
 
-typedef HANDLE( WINAPI *AddFontMemResourceExProc ) (PVOID pbFont, DWORD cbFont, PVOID pdv, DWORD *pcFonts);
-typedef LONG( WINAPI *RemoveFontMemResourceExProc ) (HANDLE fh);
-
-typedef DWORD ( WINAPI *GetGlyphIndicesAProc ) (HDC hdc,LPCSTR lpstr, int c, LPWORD pgi, DWORD fl);
-typedef DWORD ( WINAPI *GetGlyphIndicesWProc ) (HDC hdc, LPCWSTR lpstr, int c,  LPWORD pgi, DWORD fl);
-typedef BOOL ( WINAPI *GetTextExtentExPointIProc ) (HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize);
-
-static GetGlyphIndicesAProc GetGlyphIndicesAPtr = nsnull;
-static GetGlyphIndicesWProc GetGlyphIndicesWPtr = nsnull;
-static GetTextExtentExPointIProc GetTextExtentExPointIPtr = nsnull;
-
-static AddFontMemResourceExProc AddFontMemResourceExPtr = nsnull;
-static RemoveFontMemResourceExProc RemoveFontMemResourceExPtr = nsnull;
-
-
 static TTLoadEmbeddedFontProc TTLoadEmbeddedFontPtr = nsnull;
 static TTDeleteEmbeddedFontProc TTDeleteEmbeddedFontPtr = nsnull;
 
 void FontEntry::InitializeFontEmbeddingProcs()
 {
+    OSVERSIONINFO os;
     HMODULE fontlib = LoadLibraryW(L"gdi32.dll");
+
+    os.dwOSVersionInfoSize = sizeof (os);
+    GetVersionEx (&os);
+
     AddFontMemResourceExPtr = (AddFontMemResourceExProc) GetProcAddress(fontlib, "AddFontMemResourceEx");
     RemoveFontMemResourceExPtr = (RemoveFontMemResourceExProc) GetProcAddress(fontlib, "RemoveFontMemResourceEx");
 
@@ -663,7 +684,7 @@ void FontEntry::InitializeFontEmbeddingProcs()
     if(!GetGlyphIndicesAPtr) GetGlyphIndicesAPtr = NS_GetGlyphIndicesA;
 
     GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
-    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = NS_GetGlyphIndicesW;
+    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = (os.dwMajorVersion < 4) ? NS_GetGlyphIndicesW_stub : NS_GetGlyphIndicesW;
 
     GetTextExtentExPointIPtr = (GetTextExtentExPointIProc) GetProcAddress(fontlib, "GetTextExtentExPointI");
     if(!GetTextExtentExPointIPtr) GetTextExtentExPointIPtr = NS_GetTextExtentExPointI;
