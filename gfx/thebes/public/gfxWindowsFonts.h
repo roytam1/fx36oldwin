@@ -120,10 +120,14 @@ public:
         mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
         mCharset(0), mUnicodeRanges(0)
     {
+    OSVERSIONINFO os;
+    os.dwOSVersionInfoSize = sizeof (os);
+    GetVersionEx (&os);
+
         mUserFontData = aUserFontData;
         mItalic = aItalic;
         mWeight = aWeight;
-        if (IsType1())
+        if (os.dwMajorVersion < 4 || IsType1())
             mForceGDI = PR_TRUE;
         mIsUserFont = aUserFontData != nsnull;
     }

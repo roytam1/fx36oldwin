@@ -74,6 +74,9 @@
 #include "prinit.h"
 static PRLogModuleInfo *gFontLog = PR_NewLogModule("winfonts");
 
+
+static int gfx_isOldNT = 0;
+
 /* Function pointers */
 
 typedef HANDLE( WINAPI *AddFontMemResourceExProc ) (PVOID pbFont, DWORD cbFont, PVOID pdv, DWORD *pcFonts);
@@ -336,6 +339,10 @@ extern "C" DWORD WINAPI NS_GetGlyphIndicesW_stub( HDC hdc, LPCWSTR lpstr, int c,
         pgi[i] = (WORD) lpstr[i];
     }
     return c;
+}
+extern "C" BOOL WINAPI NS_GetTextExtentExPointI_stub( HDC hdc, LPWORD pgiIn, int cgi,int nMaxExtent, LPINT lpnFit, LPINT alpDx, LPSIZE lpSize)
+{
+	return GetTextExtentExPointW(hdc, (LPCWSTR)pgiIn, cgi, nMaxExtent, lpnFit, alpDx, lpSize);
 }
 /* stub ends */
 
@@ -676,6 +683,7 @@ void FontEntry::InitializeFontEmbeddingProcs()
 
     os.dwOSVersionInfoSize = sizeof (os);
     GetVersionEx (&os);
+    if (os.dwMajorVersion < 4) gfx_isOldNT = 1;
 
     AddFontMemResourceExPtr = (AddFontMemResourceExProc) GetProcAddress(fontlib, "AddFontMemResourceEx");
     RemoveFontMemResourceExPtr = (RemoveFontMemResourceExProc) GetProcAddress(fontlib, "RemoveFontMemResourceEx");
@@ -684,10 +692,10 @@ void FontEntry::InitializeFontEmbeddingProcs()
     if(!GetGlyphIndicesAPtr) GetGlyphIndicesAPtr = NS_GetGlyphIndicesA;
 
     GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
-    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = (os.dwMajorVersion < 4) ? NS_GetGlyphIndicesW_stub : NS_GetGlyphIndicesW;
+    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = (gfx_isOldNT) ? NS_GetGlyphIndicesW_stub : NS_GetGlyphIndicesW;
 
     GetTextExtentExPointIPtr = (GetTextExtentExPointIProc) GetProcAddress(fontlib, "GetTextExtentExPointI");
-    if(!GetTextExtentExPointIPtr) GetTextExtentExPointIPtr = NS_GetTextExtentExPointI;
+    if(!GetTextExtentExPointIPtr) GetTextExtentExPointIPtr = (gfx_isOldNT) ? NS_GetTextExtentExPointI_stub : NS_GetTextExtentExPointI;
 
     fontlib = LoadLibraryW(L"t2embed.dll");
     if (!fontlib)
