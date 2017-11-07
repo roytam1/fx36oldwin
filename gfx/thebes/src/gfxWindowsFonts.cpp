@@ -692,10 +692,16 @@ void FontEntry::InitializeFontEmbeddingProcs()
     if(!GetGlyphIndicesAPtr) GetGlyphIndicesAPtr = NS_GetGlyphIndicesA;
 
     GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
-    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = (gfx_isOldNT) ? NS_GetGlyphIndicesW_stub : NS_GetGlyphIndicesW;
+    if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = NS_GetGlyphIndicesW;
 
     GetTextExtentExPointIPtr = (GetTextExtentExPointIProc) GetProcAddress(fontlib, "GetTextExtentExPointI");
-    if(!GetTextExtentExPointIPtr) GetTextExtentExPointIPtr = (gfx_isOldNT) ? NS_GetTextExtentExPointI_stub : NS_GetTextExtentExPointI;
+    if(!GetTextExtentExPointIPtr) GetTextExtentExPointIPtr = NS_GetTextExtentExPointI;
+
+    /* NT3 hack */
+    if(gfx_isOldNT) {
+        GetGlyphIndicesWPtr = NS_GetGlyphIndicesW_stub;
+        GetTextExtentExPointIPtr = NS_GetTextExtentExPointI_stub;
+    }
 
     fontlib = LoadLibraryW(L"t2embed.dll");
     if (!fontlib)
@@ -1145,7 +1151,7 @@ FontEntry::TestCharacterMap(PRUint32 aCh)
         WORD glyph[1];
 
         PRBool hasGlyph = PR_FALSE;
-        if (IsType1()) {
+        if (mForceGDI || IsType1()) {
             // Type1 fonts and uniscribe APIs don't get along.  ScriptGetCMap will return E_HANDLE
             DWORD ret = GetGlyphIndicesWPtr(dc, str, 1, glyph, GGI_MARK_NONEXISTING_GLYPHS);
             if (ret != GDI_ERROR && glyph[0] != 0xFFFF)

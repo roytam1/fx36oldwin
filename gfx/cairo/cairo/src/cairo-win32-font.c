@@ -95,7 +95,12 @@ void cairo_SetupFPtrs()
         GetGlyphIndicesWPtr = (GetGlyphIndicesWProc) GetProcAddress(fontlib, "GetGlyphIndicesW");
         GetFontUnicodeRangesPtr = (GetFontUnicodeRangesProc) GetProcAddress(fontlib, "GetFontUnicodeRanges");
 
-        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = (!isOldNT) ? NS_GetGlyphIndicesW : NS_GetGlyphIndicesW_stub;
+        if(!GetGlyphIndicesWPtr) GetGlyphIndicesWPtr = NS_GetGlyphIndicesW;
+
+        /* NT3 hack */
+        if(isOldNT) {
+            GetGlyphIndicesWPtr = NS_GetGlyphIndicesW_stub;
+        }
     }
 }
 
@@ -763,7 +768,8 @@ _cairo_win32_scaled_font_text_to_glyphs (void		*abstract_font,
 
     /* GetCharacterPlacement() returns utf16 instead of glyph indices
      * for Type 1 fonts. Use GetGlyphIndices for Type 1 fonts. */
-    if (scaled_font->is_type1)
+    cairo_SetupFPtrs();
+    if (isOldNT||scaled_font->is_type1)
 	 return _cairo_win32_scaled_font_type1_text_to_glyphs (scaled_font,
 							       x,
 							       y,
@@ -1205,6 +1211,7 @@ _flush_glyphs (cairo_glyph_state_t *state)
     elements = _cairo_array_index (&state->glyphs, 0);
     dx_elements = _cairo_array_index (&state->dx, 0);
 
+    cairo_SetupFPtrs();
 	if(!isOldNT) fuOptions = ETO_GLYPH_INDEX;
 
     if (!ExtTextOutW (state->hdc,
@@ -1440,15 +1447,10 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
     cairo_win32_surface_t *surface = (cairo_win32_surface_t *)generic_surface;
     cairo_status_t status;
 
-	/*OSVERSIONINFO os;
-
-	os.dwOSVersionInfoSize = sizeof (os);
-	GetVersionEx (&os);*/
-
     if (width == 0 || height == 0)
 	return CAIRO_STATUS_SUCCESS;
 
-    if (/*os.dwMajorVersion > 4 &&*/ _cairo_surface_is_win32 (generic_surface) &&
+    if (_cairo_surface_is_win32 (generic_surface) &&
 	surface->format == CAIRO_FORMAT_RGB24 &&
 	op == CAIRO_OPERATOR_OVER &&
 	_cairo_pattern_is_opaque_solid (pattern)) {
