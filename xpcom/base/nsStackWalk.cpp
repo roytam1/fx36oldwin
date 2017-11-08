@@ -650,6 +650,7 @@ DWORD WINAPI NS_SignalObjectAndWait_wrapper(HANDLE hObjectToSignal, HANDLE hObje
 
 DWORD WINAPI NS_SignalObjectAndWait(HANDLE hObjectToSignal, HANDLE hObjectToWaitOn, DWORD dwMilliseconds, BOOL bAlertable)
 {
+  if(!pSignalObjectAndWait) {
     pSignalObjectAndWait = (SIGNALOBJECTANDWAIT)GetProcAddress( GetModuleHandle( "KERNEL32" ), "SignalObjectAndWait" );
     if( (pSignalObjectAndWait != NULL)
         && (pSignalObjectAndWait(NULL, NULL, 0, 0) == WAIT_FAILED) ) {
@@ -657,7 +658,8 @@ DWORD WINAPI NS_SignalObjectAndWait(HANDLE hObjectToSignal, HANDLE hObjectToWait
     } else {
         pSignalObjectAndWait = NS_SignalObjectAndWait_wrapper;
     }
-    return pSignalObjectAndWait(hObjectToSignal, hObjectToWaitOn, dwMilliseconds, bAlertable);
+  }
+  return pSignalObjectAndWait(hObjectToSignal, hObjectToWaitOn, dwMilliseconds, bAlertable);
 }
 
 /**

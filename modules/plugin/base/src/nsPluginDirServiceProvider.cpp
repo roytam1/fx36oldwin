@@ -82,6 +82,7 @@ GetFileVersion(LPCWSTR szFile, verBlock *vbVersion)
   LPVOID            lpData;
   LPVOID            lpBuffer;
   VS_FIXEDFILEINFO  *lpBuffer2;
+  WCHAR *keybuf = NULL;
 
   ClearVersion(vbVersion);
   if (FileExists(szFile)) {
@@ -96,8 +97,11 @@ GetFileVersion(LPCWSTR szFile, verBlock *vbVersion)
     lpData = (LPVOID)malloc(dwLen);
     uLen   = 0;
 
+    keybuf = (WCHAR *)malloc(2*sizeof(WCHAR));
+    wcscpy(keybuf,L"\\");
+
     if (lpData && GetFileVersionInfoW(lpFilepath, dwHandle, dwLen, lpData) != 0) {
-      if (VerQueryValueW(lpData, L"\\", &lpBuffer, &uLen) != 0) {
+      if (VerQueryValueW(lpData, keybuf, &lpBuffer, &uLen) != 0) {
         lpBuffer2 = (VS_FIXEDFILEINFO *)lpBuffer;
 
         vbVersion->wMajor   = HIWORD(lpBuffer2->dwFileVersionMS);
@@ -106,6 +110,7 @@ GetFileVersion(LPCWSTR szFile, verBlock *vbVersion)
         vbVersion->wBuild   = LOWORD(lpBuffer2->dwFileVersionLS);
       }
     }
+    free(keybuf);
 
     free(lpData);
   } else {

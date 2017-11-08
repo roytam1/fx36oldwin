@@ -59,10 +59,16 @@
 
 static char* GetKeyValue(WCHAR* verbuf, WCHAR* key)
 {
-  WCHAR *buf = NULL;
-  UINT blen;
+  WCHAR *buf = NULL, *keybuf = NULL;
+  UINT blen, klen;
 
-  ::VerQueryValueW(verbuf, key, (void **)&buf, &blen);
+  klen = wcslen(key);
+  keybuf = (WCHAR *)malloc((klen+1)*sizeof(WCHAR));
+  wcscpy(keybuf,key);
+
+  ::VerQueryValueW(verbuf, keybuf, (void **)&buf, &blen);
+
+  free(keybuf);
 
   if (buf) {
     return PL_strdup(NS_ConvertUTF16toUTF8(buf).get());
@@ -75,8 +81,14 @@ static char* GetVersion(WCHAR* verbuf)
 {
   VS_FIXEDFILEINFO *fileInfo;
   UINT fileInfoLen;
+  WCHAR *keybuf = NULL;
 
-  ::VerQueryValueW(verbuf, L"\\", (void **)&fileInfo, &fileInfoLen);
+  keybuf = (WCHAR *)malloc(2*sizeof(WCHAR));
+  wcscpy(keybuf,L"\\");
+
+  ::VerQueryValueW(verbuf, keybuf, (void **)&fileInfo, &fileInfoLen);
+
+  free(keybuf);
 
   if (fileInfo) {
     return PR_smprintf("%ld.%ld.%ld.%ld",

@@ -1427,6 +1427,8 @@ typedef struct {
 NS_IMETHODIMP
 nsLocalFile::GetVersionInfoField(const char* aField, nsAString& _retval)
 {
+    WCHAR *keybuf = NULL;
+
     nsresult rv = ResolveAndStat();
     if (NS_FAILED(rv))
         return rv;
@@ -1453,11 +1455,14 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& _retval)
     if (!ver)
         return NS_ERROR_OUT_OF_MEMORY;
 
+    keybuf = (WCHAR *)malloc(26*sizeof(WCHAR));
+    wcscpy(keybuf,L"\\VarFileInfo\\Translation");
+
     if (nsWinAPIs::mGetFileVersionInfo(path, 0, size, ver)) 
     {
         LANGANDCODEPAGE* translate = nsnull;
         UINT pageCount;
-        BOOL queryResult = ::VerQueryValueW(ver, L"\\VarFileInfo\\Translation", 
+        BOOL queryResult = ::VerQueryValueW(ver, keybuf, 
                                             (void**)&translate, &pageCount);
         if (queryResult && translate) 
         {
@@ -1487,6 +1492,7 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& _retval)
             }
         }
     }
+    free(keybuf);
     free(ver);
     
     return rv;
