@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * A test for nonblocking connect.  Functions tested include PR_Connect,
@@ -28,6 +60,12 @@
 #include "plgetopt.h"
 #include <stdio.h>
 #include <string.h>
+
+#ifdef XP_MAC
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+static char *hosts[4] = {"cynic", "warp", "gandalf", "neon"};
+#endif
 
 #define SERVER_MAX_BIND_COUNT        100
 #define DATA_BUF_SIZE        		 256
@@ -56,6 +94,10 @@ int main(int argc, char **argv)
 	const char *hostname = NULL;
     PRIntn default_case, n, bytes_read, bytes_sent;
 	PRInt32 failed_already = 0;
+#ifdef XP_MAC
+	int index;
+	PRIntervalTime timeout;
+#endif
 
     /*
      * -d           debug mode
@@ -80,11 +122,23 @@ int main(int argc, char **argv)
     }
     PL_DestroyOptState(opt);
 
+#ifdef XP_MAC
+	SetupMacPrintfLog("nbconn.log");
+	for (index=0; index<4; index++) {
+	argv[1] = hosts[index];
+	timeout = PR_INTERVAL_NO_TIMEOUT;
+	if (index == 3)
+		timeout = PR_SecondsToInterval(10UL);
+#endif
+
+
     PR_STDIO_INIT();
+#ifndef XP_MAC
     if (hostname)
 		default_case = 0;
 	else
 		default_case = 1;
+#endif
 
 	if (default_case) {
 
@@ -93,7 +147,7 @@ int main(int argc, char **argv)
 		 *	1. successful connection: a server thread accepts a connection
 		 *	   from the main thread
 		 *	2. unsuccessful connection: the main thread tries to connect to a
-		 *	   nonexistent port and expects to get an error
+		 *	   non-existent port and expects to get an error
 		 */
 		rv = connection_success_test();
 		if (rv == 0)
@@ -121,7 +175,11 @@ int main(int argc, char **argv)
 
 		pd.fd = sock;
 		pd.in_flags = PR_POLL_WRITE | PR_POLL_EXCEPT;
+#ifndef XP_MAC
 		n = PR_Poll(&pd, 1, PR_INTERVAL_NO_TIMEOUT);
+#else
+		n = PR_Poll(&pd, 1, timeout);
+#endif
 		if (n == -1) {
 			printf( "PR_Poll failed\n");
 			exit(1);
@@ -145,6 +203,8 @@ int main(int argc, char **argv)
 
 		if (PR_GetConnectStatus(&pd) == PR_SUCCESS) {
 			printf("PR_GetConnectStatus: connect succeeded\n");
+			/* Mac and Win16 have trouble printing to the console. */
+#if !defined(XP_MAC) && !defined(WIN16)
 			PR_Write(sock, "GET /\r\n\r\n", 9);
 			PR_Shutdown(sock, PR_SHUTDOWN_SEND);
 			pd.in_flags = PR_POLL_READ;
@@ -158,6 +218,7 @@ int main(int argc, char **argv)
 				}
 				PR_Write(PR_STDOUT, buf, n);
 			}
+#endif
 		} else {
 			if (PR_GetError() == PR_IN_PROGRESS_ERROR) {
 				printf( "PR_GetConnectStatus: connect still in progress\n");
@@ -167,6 +228,9 @@ int main(int argc, char **argv)
 					PR_GetError(), PR_GetOSError());
 		}
 		PR_Close(sock);
+#ifdef XP_MAC
+		} /* end of for loop */
+#endif
     	printf( "PASS\n");
     	return 0;
 
@@ -314,7 +378,11 @@ connection_success_test()
 	DPRINTF(("Created TCP_Server thread [0x%x]\n",thr));
 	pd.fd = conn_fd;
 	pd.in_flags = PR_POLL_WRITE | PR_POLL_EXCEPT;
+#ifndef XP_MAC
 	n = PR_Poll(&pd, 1, PR_INTERVAL_NO_TIMEOUT);
+#else
+	n = PR_Poll(&pd, 1, timeout);
+#endif
 	if (n == -1) {
 		fprintf(stderr,"Error - PR_Poll failed: (%d, %d)\n",
 									PR_GetError(), PR_GetOSError());
@@ -415,7 +483,7 @@ def_exit:
 }
 
 /*
- * test for connection to a nonexistent port using a non-blocking socket
+ * test for connection to a non-existent port using a non-blocking socket
  */
 static PRIntn
 connection_failure_test()
@@ -488,7 +556,11 @@ connection_failure_test()
 	}
 	pd.fd = conn_fd;
 	pd.in_flags = PR_POLL_WRITE | PR_POLL_EXCEPT;
+#ifndef XP_MAC
 	n = PR_Poll(&pd, 1, PR_INTERVAL_NO_TIMEOUT);
+#else
+	n = PR_Poll(&pd, 1, timeout);
+#endif
 	if (n == -1) {
 		fprintf(stderr,"Error - PR_Poll failed: (%d, %d)\n",
 									PR_GetError(), PR_GetOSError());

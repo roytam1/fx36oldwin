@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * 
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ * 
+ * The Initial Developer of the Original Code is Netscape
+ * Communications Corporation.  Portions created by Netscape are 
+ * Copyright (C) 1998-2000 Netscape Communications Corporation.  All
+ * Rights Reserved.
+ * 
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
+ */
 
 #ifndef plarena_h___
 #define plarena_h___
@@ -58,68 +91,6 @@ struct PLArenaPool {
 };
 
 /*
- * WARNING: The PL_MAKE_MEM_ macros are for internal use by NSPR. Do NOT use
- * them in your code.
- *
- * NOTE: Valgrind support to be added.
- *
- * The PL_MAKE_MEM_ macros are modeled after the MOZ_MAKE_MEM_ macros in
- * Mozilla's mfbt/MemoryChecking.h. Only AddressSanitizer is supported now.
- *
- * Provides a common interface to the ASan (AddressSanitizer) and Valgrind
- * functions used to mark memory in certain ways. In detail, the following
- * three macros are provided:
- *
- *   PL_MAKE_MEM_NOACCESS  - Mark memory as unsafe to access (e.g. freed)
- *   PL_MAKE_MEM_UNDEFINED - Mark memory as accessible, with content undefined
- *   PL_MAKE_MEM_DEFINED - Mark memory as accessible, with content defined
- *
- * With Valgrind in use, these directly map to the three respective Valgrind
- * macros. With ASan in use, the NOACCESS macro maps to poisoning the memory,
- * while the UNDEFINED/DEFINED macros unpoison memory.
- *
- * With no memory checker available, all macros expand to the empty statement.
- */
-
-/* WARNING: PL_SANITIZE_ADDRESS is for internal use by this header. Do NOT
- * define or test this macro in your code.
- */
-#if defined(__has_feature)
-#if __has_feature(address_sanitizer)
-#define PL_SANITIZE_ADDRESS 1
-#endif
-#elif defined(__SANITIZE_ADDRESS__)
-#define PL_SANITIZE_ADDRESS 1
-#endif
-
-#if defined(PL_SANITIZE_ADDRESS)
-
-/* These definitions are usually provided through the
- * sanitizer/asan_interface.h header installed by ASan.
- * See https://code.google.com/p/address-sanitizer/wiki/ManualPoisoning
- */
-
-void __asan_poison_memory_region(void const volatile *addr, size_t size);
-void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
-
-#define PL_MAKE_MEM_NOACCESS(addr, size) \
-    __asan_poison_memory_region((addr), (size))
-
-#define PL_MAKE_MEM_UNDEFINED(addr, size) \
-    __asan_unpoison_memory_region((addr), (size))
-
-#define PL_MAKE_MEM_DEFINED(addr, size) \
-    __asan_unpoison_memory_region((addr), (size))
-
-#else
-
-#define PL_MAKE_MEM_NOACCESS(addr, size)
-#define PL_MAKE_MEM_UNDEFINED(addr, size)
-#define PL_MAKE_MEM_DEFINED(addr, size)
-
-#endif
-
-/*
  * If the including .c file uses only one power-of-2 alignment, it may define
  * PL_ARENA_CONST_ALIGN_MASK to the alignment mask and save a few instructions
  * per ALLOCATE and GROW.
@@ -140,13 +111,11 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
         PRUint32 _nb = PL_ARENA_ALIGN(pool, nb); \
         PRUword _p = _a->avail; \
         PRUword _q = _p + _nb; \
-        if (_q > _a->limit) { \
+        if (_q > _a->limit) \
             _p = (PRUword)PL_ArenaAllocate(pool, _nb); \
-        } else { \
+        else \
             _a->avail = _q; \
-        } \
         p = (void *)_p; \
-        PL_MAKE_MEM_UNDEFINED(p, nb); \
         PL_ArenaCountAllocation(pool, nb); \
     PR_END_MACRO
 
@@ -158,7 +127,6 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
         PRUword _q = _p + _incr; \
         if (_p == (PRUword)(p) + PL_ARENA_ALIGN(pool, size) && \
             _q <= _a->limit) { \
-            PL_MAKE_MEM_UNDEFINED((unsigned char *)(p) + size, incr); \
             _a->avail = _q; \
             PL_ArenaCountInplaceGrowth(pool, size, incr); \
         } else { \
@@ -171,19 +139,13 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
 #define PR_UPTRDIFF(p,q) ((PRUword)(p) - (PRUword)(q))
 
 #define PL_CLEAR_UNUSED_PATTERN(a, pattern) \
-    PR_BEGIN_MACRO \
-        PR_ASSERT((a)->avail <= (a)->limit); \
-        PL_MAKE_MEM_UNDEFINED((void*)(a)->avail, (a)->limit - (a)->avail); \
-        memset((void*)(a)->avail, (pattern), (a)->limit - (a)->avail); \
-    PR_END_MACRO
+	   (PR_ASSERT((a)->avail <= (a)->limit), \
+	   memset((void*)(a)->avail, (pattern), (a)->limit - (a)->avail))
 #ifdef DEBUG
 #define PL_FREE_PATTERN 0xDA
 #define PL_CLEAR_UNUSED(a) PL_CLEAR_UNUSED_PATTERN((a), PL_FREE_PATTERN)
-#define PL_CLEAR_ARENA(a) \
-    PR_BEGIN_MACRO \
-        PL_MAKE_MEM_UNDEFINED((void*)(a), (a)->limit - (PRUword)(a)); \
-        memset((void*)(a), PL_FREE_PATTERN, (a)->limit - (PRUword)(a)); \
-    PR_END_MACRO
+#define PL_CLEAR_ARENA(a)  memset((void*)(a), PL_FREE_PATTERN, \
+                           (a)->limit - (PRUword)(a))
 #else
 #define PL_CLEAR_UNUSED(a)
 #define PL_CLEAR_ARENA(a)
@@ -196,7 +158,6 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
         if (PR_UPTRDIFF(_m, _a->base) <= PR_UPTRDIFF(_a->avail, _a->base)) { \
             _a->avail = (PRUword)PL_ARENA_ALIGN(pool, _m); \
             PL_CLEAR_UNUSED(_a); \
-            PL_MAKE_MEM_NOACCESS((void*)_a->avail, _a->limit - _a->avail); \
             PL_ArenaCountRetract(pool, _m); \
         } else { \
             PL_ArenaRelease(pool, _m); \

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef primpl_h___
 #define primpl_h___
@@ -22,36 +54,35 @@
 #include <kernel/OS.h>
 #endif
 
-#ifdef WIN32
-/*
- * Allow use of functions and symbols first defined in Win2k.
- * /
-#if !defined(WINVER) || (WINVER < 0x0500)
-#undef WINVER
-#define WINVER 0x0500
-#endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0500
-#endif*/
-#endif /* WIN32 */
+#ifdef WINNT
+/* Need to force service-pack 3 extensions to be defined by
+** setting _WIN32_WINNT to NT 4.0 for winsock.h, winbase.h, winnt.h.
+*/
+#ifndef  _WIN32_WINNT
+    #define _WIN32_WINNT 0x0400
+#elif   (_WIN32_WINNT < 0x0400)
+    #undef  _WIN32_WINNT
+    #define _WIN32_WINNT 0x0400
+#endif /* _WIN32_WINNT */
+#endif /* WINNT */
 
 #include "nspr.h"
 #include "prpriv.h"
 
 typedef struct PRSegment PRSegment;
 
+#ifdef XP_MAC
+#include "prosdep.h"
+#include "probslet.h"
+#else
 #include "md/prosdep.h"
 #include "obsolete/probslet.h"
+#endif  /* XP_MAC */
 
 #ifdef _PR_HAVE_POSIX_SEMAPHORES
 #include <semaphore.h>
 #elif defined(_PR_HAVE_SYSV_SEMAPHORES)
 #include <sys/sem.h>
-#endif
-
-#ifdef HAVE_SYSCALL
-#include <sys/syscall.h>
 #endif
 
 /*************************************************************************
@@ -164,7 +195,12 @@ struct _PT_Notified
 #define _PT_THREAD_UNBLOCK_INTERRUPT(thr)			\
 		(thr->interrupt_blocked = 0)
 
+#ifdef GC_LEAK_DETECTOR
+/* All threads are GCable. */
+#define _PT_IS_GCABLE_THREAD(thr) 1
+#else
 #define _PT_IS_GCABLE_THREAD(thr) ((thr)->state & PT_THREAD_GCABLE)
+#endif /* GC_LEAK_DETECTOR */
 
 /* 
 ** Possible values for thread's suspend field
@@ -189,17 +225,6 @@ typedef struct PTDebug
 #endif /* defined(DEBUG) */
 
 NSPR_API(void) PT_FPrintStats(PRFileDesc *fd, const char *msg);
-
-/*
- * On Linux and its derivatives POSIX priority scheduling works only for
- * real-time threads. On those platforms we set thread's nice values
- * instead which requires us to track kernel thread IDs for each POSIX
- * thread we create.
- */
-#if defined(LINUX) && defined(HAVE_SETPRIORITY) && \
-    ((defined(HAVE_SYSCALL) && defined(SYS_gettid)) || defined(HAVE_GETTID))
-#define _PR_NICE_PRIORITY_SCHEDULING
-#endif
 
 #else /* defined(_PR_PTHREADS) */
 
@@ -301,8 +326,10 @@ NSPR_API(PRInt32)                      _pr_intsOff;
 #define _MD_LAST_THREAD()               (_pr_lastThread)
 #define _MD_SET_LAST_THREAD(t)          (_pr_lastThread = t)
 
+#ifndef XP_MAC
 #define _MD_GET_INTSOFF()               (_pr_intsOff)
 #define _MD_SET_INTSOFF(_val)           (_pr_intsOff = _val)
+#endif
 
 
 /* The unbalanced curly braces in these two macros are intentional */
@@ -347,11 +374,19 @@ extern PRInt32                  _native_threads_only;
 
 #else
 
+#ifdef XP_MAC
+
+#define _PR_INTSOFF(_is)        _MD_INTSOFF(_is)
+
+#else /* XP_MAC */
+
 #define _PR_INTSOFF(_is) \
     PR_BEGIN_MACRO \
         (_is) = _PR_MD_GET_INTSOFF(); \
         _PR_MD_SET_INTSOFF(1); \
     PR_END_MACRO
+
+#endif /* XP_MAC */
 
 #define _PR_FAST_INTSON(_is) \
     PR_BEGIN_MACRO \
@@ -611,7 +646,12 @@ NSPR_API(void) _PR_Notify(PRMonitor *mon, PRBool all, PRBool sticky);
 #define        _PR_ADJUST_STACKSIZE(stackSize)
 #endif
 
+#ifdef GC_LEAK_DETECTOR
+/* All threads are GCable. */
+#define _PR_IS_GCABLE_THREAD(thr) 1
+#else
 #define _PR_IS_GCABLE_THREAD(thr) ((thr)->flags & _PR_GCABLE_THREAD)
+#endif /* GC_LEAK_DETECTOR */
 
 #define _PR_PENDING_INTERRUPT(thr)					\
 		(!((thr)->flags & _PR_INTERRUPT_BLOCKED) && ((thr)->flags & _PR_INTERRUPT))
@@ -992,9 +1032,6 @@ extern void _PR_MD_YIELD(void);
 extern void _PR_MD_SET_PRIORITY(_MDThread *md, PRThreadPriority newPri);
 #define    _PR_MD_SET_PRIORITY _MD_SET_PRIORITY
 
-extern void _PR_MD_SET_CURRENT_THREAD_NAME(const char *name);
-#define    _PR_MD_SET_CURRENT_THREAD_NAME _MD_SET_CURRENT_THREAD_NAME
-
 NSPR_API(void) _PR_MD_SUSPENDALL(void);
 #define    _PR_MD_SUSPENDALL _MD_SUSPENDALL
 
@@ -1051,6 +1088,11 @@ extern PRStatus _PR_MD_DELETE_SEMAPHORE(const char *osname);
 /* I/O related */
 extern void _PR_MD_INIT_FILEDESC(PRFileDesc *fd);
 #define    _PR_MD_INIT_FILEDESC _MD_INIT_FILEDESC
+
+#ifdef XP_MAC
+extern void _PR_MD_FREE_FILEDESC(PRFileDesc *fd);
+#define    _PR_MD_FREE_FILEDESC _MD_FREE_FILEDESC
+#endif
 
 extern void _PR_MD_MAKE_NONBLOCK(PRFileDesc *fd);
 #define    _PR_MD_MAKE_NONBLOCK _MD_MAKE_NONBLOCK
@@ -1173,13 +1215,6 @@ extern PRInt32 _PR_MD_FAST_ACCEPT_READ(PRFileDesc *sd, PROsfd *newSock,
 
 extern void _PR_MD_UPDATE_ACCEPT_CONTEXT(PROsfd s, PROsfd ls);
 #define _PR_MD_UPDATE_ACCEPT_CONTEXT _MD_UPDATE_ACCEPT_CONTEXT
-/*
- * The NSPR epoch (00:00:00 1 Jan 1970 UTC) in FILETIME.
- * We store the value in a PRTime variable for convenience.
- * This constant is used by _PR_FileTimeToPRTime().
- * This is defined in ntmisc.c
- */
-extern const PRTime _pr_filetime_offset;
 #endif /* WIN32 */
 
 extern PRInt32 _PR_MD_SENDFILE(
@@ -1551,13 +1586,9 @@ struct PRThread {
     PRIntn  errorStringLength;      /* textLength from last call to PR_SetErrorText() */
     PRInt32 errorStringSize;        /* malloc()'d size of buffer | zero */
     char *errorString;              /* current error string | NULL */
-    char *name;                     /* thread's name */
 
 #if defined(_PR_PTHREADS)
     pthread_t id;                   /* pthread identifier for the thread */
-#ifdef _PR_NICE_PRIORITY_SCHEDULING
-    pid_t tid;                      /* Linux-specific kernel thread ID */
-#endif
     PRBool okToDelete;              /* ok to delete the PRThread struct? */
     PRCondVar *waiting;             /* where the thread is waiting | NULL */
     void *sp;                       /* recorded sp for garbage collection */
@@ -1783,6 +1814,9 @@ extern void _PR_CleanupTPD(void);
 extern void _PR_Cleanup(void);
 extern void _PR_LogCleanup(void);
 extern void _PR_InitLayerCache(void);
+#ifdef GC_LEAK_DETECTOR
+extern void _PR_InitGarbageCollector(void);
+#endif
 
 extern PRBool _pr_initialized;
 extern void _PR_ImplicitInitialization(void);
@@ -1844,6 +1878,7 @@ extern void _PR_DestroyZones(void);
         && !defined(_PR_PTHREADS) && !defined(_PR_GLOBAL_THREADS_ONLY) \
         && !defined(PURIFY) \
         && !defined(DARWIN) \
+        && !defined(NEXTSTEP) \
         && !defined(QNX) \
         && !(defined (UNIXWARE) && defined (USE_SVR4_THREADS))
 #define _PR_OVERRIDE_MALLOC
@@ -1862,9 +1897,6 @@ extern void _PR_MD_INTERVAL_INIT(void);
 
 NSPR_API(void) _PR_MD_FINAL_INIT(void);
 #define    _PR_MD_FINAL_INIT _MD_FINAL_INIT
-
-extern void _PR_MD_EARLY_CLEANUP(void);
-#define    _PR_MD_EARLY_CLEANUP _MD_EARLY_CLEANUP
 
 /* Process control */
 

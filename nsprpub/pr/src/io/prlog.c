@@ -1,16 +1,46 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 #include "prenv.h"
 #include "prprf.h"
 #include <string.h>
-#ifdef ANDROID
-#include <android/log.h>
-#endif
 
 /*
  * Lock used to lock the log.
@@ -69,16 +99,6 @@ static PRLock *_pr_logLock;
 #define WIN32_DEBUG_FILE (FILE*)-2
 #endif
 
-#ifdef WINCE
-static void OutputDebugStringA(const char* msg) {
-    int len = MultiByteToWideChar(CP_ACP, 0, msg, -1, 0, 0);
-    WCHAR *wMsg = (WCHAR *)PR_Malloc(len * sizeof(WCHAR));
-    MultiByteToWideChar(CP_ACP, 0, msg, -1, wMsg, len);
-    OutputDebugStringW(wMsg);
-    PR_Free(wMsg);
-}
-#endif
-
 /* Macros used to reduce #ifdef pollution */
 
 #if defined(_PR_USE_STDIO_FOR_LOGGING) && defined(XP_PC)
@@ -87,7 +107,7 @@ static void OutputDebugStringA(const char* msg) {
     if (logFile == WIN32_DEBUG_FILE) { \
         char savebyte = buf[nb]; \
         buf[nb] = '\0'; \
-        OutputDebugStringA(buf); \
+        OutputDebugString(buf); \
         buf[nb] = savebyte; \
     } else { \
         fwrite(buf, 1, nb, fd); \
@@ -96,20 +116,10 @@ static void OutputDebugStringA(const char* msg) {
     PR_END_MACRO
 #elif defined(_PR_USE_STDIO_FOR_LOGGING)
 #define _PUT_LOG(fd, buf, nb) {fwrite(buf, 1, nb, fd); fflush(fd);}
-#elif defined(ANDROID)
-#define _PUT_LOG(fd, buf, nb)                                \
-    PR_BEGIN_MACRO                                           \
-    if (fd == _pr_stderr) {                                  \
-        char savebyte = buf[nb];                             \
-        buf[nb] = '\0';                                      \
-        __android_log_write(ANDROID_LOG_INFO, "PRLog", buf); \
-        buf[nb] = savebyte;                                  \
-    } else {                                                 \
-        PR_Write(fd, buf, nb);                               \
-    }                                                        \
-    PR_END_MACRO
 #elif defined(_PR_PTHREADS)
 #define _PUT_LOG(fd, buf, nb) PR_Write(fd, buf, nb)
+#elif defined(XP_MAC)
+#define _PUT_LOG(fd, buf, nb) _PR_MD_WRITE_SYNC(fd, buf, nb)
 #else
 #define _PUT_LOG(fd, buf, nb) _PR_MD_WRITE(fd, buf, nb)
 #endif
@@ -126,8 +136,6 @@ static FILE *logFile = NULL;
 #else
 static PRFileDesc *logFile = 0;
 #endif
-static PRBool outputTimeStamp = PR_FALSE;
-static PRBool appendToLog = PR_FALSE;
 
 #define LINE_BUF_SIZE           512
 #define DEFAULT_BUF_SIZE        16384
@@ -213,10 +221,6 @@ void _PR_InitLog(void)
                 if (level >= LINE_BUF_SIZE) {
                     bufSize = level;
                 }
-            } else if (strcasecmp(module, "timestamp") == 0) {
-                outputTimeStamp = PR_TRUE;
-            } else if (strcasecmp(module, "append") == 0) {
-                appendToLog = PR_TRUE;
             } else {
                 PRLogModuleInfo *lm = logModules;
                 PRBool skip_modcheck =
@@ -250,7 +254,7 @@ void _PR_InitLog(void)
 #ifdef XP_PC
                 char* str = PR_smprintf("Unable to create nspr log file '%s'\n", ev);
                 if (str) {
-                    OutputDebugStringA(str);
+                    OutputDebugString(str);
                     PR_smprintf_free(str);
                 }
 #else
@@ -282,13 +286,14 @@ void _PR_LogCleanup(void)
 #endif
         ) {
         fclose(logFile);
+        logFile = NULL;
     }
 #else
     if (logFile && logFile != _pr_stdout && logFile != _pr_stderr) {
         PR_Close(logFile);
+        logFile = NULL;
     }
 #endif
-    logFile = NULL;
 
     if (logBuf)
         PR_DELETE(logBuf);
@@ -375,15 +380,12 @@ PR_IMPLEMENT(PRBool) PR_SetLogFile(const char *file)
     else
 #endif
     {
-        const char *mode = appendToLog ? "a" : "w";
-        newLogFile = fopen(file, mode);
+        newLogFile = fopen(file, "w");
         if (!newLogFile)
             return PR_FALSE;
 
-#ifndef WINCE  /* _IONBF does not exist in the Windows Mobile 6 SDK. */
         /* We do buffering ourselves. */
         setvbuf(newLogFile, NULL, _IONBF, 0);
-#endif
     }
     if (logFile
         && logFile != stdout
@@ -398,19 +400,16 @@ PR_IMPLEMENT(PRBool) PR_SetLogFile(const char *file)
     return PR_TRUE;
 #else
     PRFileDesc *newLogFile;
-    PRIntn flags = PR_WRONLY|PR_CREATE_FILE;
-    if (appendToLog) {
-        flags |= PR_APPEND;
-    } else {
-        flags |= PR_TRUNCATE;
-    }
 
-    newLogFile = PR_Open(file, flags, 0666);
+    newLogFile = PR_Open(file, PR_WRONLY|PR_CREATE_FILE|PR_TRUNCATE, 0666);
     if (newLogFile) {
         if (logFile && logFile != _pr_stdout && logFile != _pr_stderr) {
             PR_Close(logFile);
         }
         logFile = newLogFile;
+#if defined(XP_MAC)
+        SetLogFileTypeCreator(file);
+#endif
     }
     return (PRBool) (newLogFile != 0);
 #endif /* _PR_USE_STDIO_FOR_LOGGING */
@@ -434,9 +433,8 @@ PR_IMPLEMENT(void) PR_LogPrint(const char *fmt, ...)
     va_list ap;
     char line[LINE_BUF_SIZE];
     char *line_long = NULL;
-    PRUint32 nb_tid = 0, nb;
+    PRUint32 nb_tid, nb;
     PRThread *me;
-    PRExplodedTime now;
 
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
@@ -444,21 +442,17 @@ PR_IMPLEMENT(void) PR_LogPrint(const char *fmt, ...)
         return;
     }
 
-    if (outputTimeStamp) {
-        PR_ExplodeTime(PR_Now(), PR_GMTParameters, &now);
-        nb_tid = PR_snprintf(line, sizeof(line)-1,
-                             "%04d-%02d-%02d %02d:%02d:%02d.%06d UTC - ",
-                             now.tm_year, now.tm_month + 1, now.tm_mday,
-                             now.tm_hour, now.tm_min, now.tm_sec,
-                             now.tm_usec);
-    }
-
     me = PR_GetCurrentThread();
-    nb_tid += PR_snprintf(line+nb_tid, sizeof(line)-nb_tid-1, "%ld[%p]: ",
-#if defined(_PR_BTHREADS)
-                          me, me);
+    nb_tid = PR_snprintf(line, sizeof(line)-1, "%ld[%p]: ",
+#if defined(_PR_DCETHREADS)
+             /* The problem is that for _PR_DCETHREADS, pthread_t is not a 
+              * pointer, but a structure; so you can't easily print it...
+              */
+                         me ? &(me->id): 0L, me);
+#elif defined(_PR_BTHREADS)
+                         me, me);
 #else
-                          me ? me->id : 0L, me);
+                         me ? me->id : 0L, me);
 #endif
 
     va_start(ap, fmt);
@@ -483,10 +477,7 @@ PR_IMPLEMENT(void) PR_LogPrint(const char *fmt, ...)
             _PUT_LOG(logFile, logBuf, logp - logBuf);
             logp = logBuf;
         }
-        /*
-         * Write out the thread id (with an optional timestamp) and the
-         * malloc'ed buffer.
-         */
+        /* Write out the thread id and the malloc'ed buffer. */
         _PUT_LOG(logFile, line, nb_tid);
         _PUT_LOG(logFile, line_long, nb);
         /* Ensure there is a trailing newline. */
@@ -543,13 +534,26 @@ PR_IMPLEMENT(void) PR_Abort(void)
 PR_IMPLEMENT(void) PR_Assert(const char *s, const char *file, PRIntn ln)
 {
     PR_LogPrint("Assertion failure: %s, at %s:%d\n", s, file, ln);
+#if defined(XP_UNIX) || defined(XP_OS2) || defined(XP_BEOS)
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
+#endif
+#ifdef XP_MAC
+    dprintf("Assertion failure: %s, at %s:%d\n", s, file, ln);
+#endif
 #ifdef WIN32
     DebugBreak();
 #endif
 #ifdef XP_OS2
     asm("int $3");
 #endif
+#ifndef XP_MAC
     abort();
+#endif
 }
+
+#ifdef XP_MAC
+PR_IMPLEMENT(void) PR_Init_Log(void)
+{
+	_PR_InitLog();
+}
+#endif

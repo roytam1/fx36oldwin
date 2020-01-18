@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
 ** Netscape portable install command.
@@ -38,18 +70,46 @@
  * Does getcwd() take NULL as the first argument and malloc
  * the result buffer?
  */
-#if !defined(DARWIN)
+#if !defined(DARWIN) && !defined(NEXTSTEP) && !defined(VMS)
 #define GETCWD_CAN_MALLOC
 #endif
+
+#ifdef NEXTSTEP
+#include <bsd/libc.h>
+
+/*
+** balazs.pataki@sztaki.hu: The getcwd is broken in NEXTSTEP (returns 0),
+** when called on a mounted fs. Did anyone notice this? Here's an ugly
+** workaround ...
+*/
+#define getcwd(b,s)   my_getcwd(b,s)
+
+static char *
+my_getcwd (char *buf, size_t size)
+{
+    FILE *pwd = popen("pwd", "r");
+    char *result = fgets(buf, size, pwd);
+
+    if (result) {
+        buf[strlen(buf)-1] = '\0';
+    }
+    pclose (pwd);
+    return buf;
+}
+#endif /* NEXTSTEP */
 
 #if defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) 
 #include <getopt.h>
 #endif
 
-#if defined(SCO) || defined(UNIXWARE)
+#if defined(SCO) || defined(UNIXWARE) || defined(SNI) || defined(NCR) || defined(NEC) || defined(NEXTSTEP)
 #if !defined(S_ISLNK) && defined(S_IFLNK)
 #define S_ISLNK(a)	(((a) & S_IFMT) == S_IFLNK)
 #endif
+#endif
+
+#if defined(SNI)
+extern int fchmod(int fildes, mode_t mode);
 #endif
 
 #ifdef QNX
@@ -308,6 +368,11 @@ main(int argc, char **argv)
 
 	    if (ftruncate(tofd, sb.st_size) < 0)
 		fail("cannot truncate %s", toname);
+	    /*
+	    ** On OpenVMS we can't chmod() until the file is closed, and we
+	    ** have to utime() last since fchown/chmod alter the timestamps.
+	    */
+#ifndef VMS
 	    if (dotimes) {
 		utb.actime = sb.st_atime;
 		utb.modtime = sb.st_mtime;
@@ -320,6 +385,7 @@ main(int argc, char **argv)
 	    if (chmod(toname, mode) < 0)
 #endif
 		fail("cannot change mode of %s", toname);
+#endif
 	    if ((owner || group) && fchown(tofd, uid, gid) < 0)
 		fail("cannot change owner of %s", toname);
 
@@ -327,6 +393,16 @@ main(int argc, char **argv)
 	    if (close(tofd) < 0)
 		fail("cannot write to %s", toname);
 	    close(fromfd);
+#ifdef VMS
+	    if (chmod(toname, mode) < 0)
+		fail("cannot change mode of %s", toname);
+	    if (dotimes) {
+		utb.actime = sb.st_atime;
+		utb.modtime = sb.st_mtime;
+		if (utime(toname, &utb) < 0)
+		    fail("cannot set times of %s", toname);
+	    }
+#endif
 	}
 
 	free(toname);

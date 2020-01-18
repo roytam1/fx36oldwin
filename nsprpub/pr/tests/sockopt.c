@@ -1,25 +1,75 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nspr.h"
 #include "prio.h"
 #include "prinit.h"
 #include "prprf.h"
+#ifdef XP_MAC
+#include "probslet.h"
+#else
 #include "obsolete/probslet.h"
+#endif
 
 #include "plerror.h"
 
 static PRFileDesc *err = NULL;
 static PRBool failed = PR_FALSE;
 
+#ifndef XP_MAC
 static void Failed(const char *msg1, const char *msg2)
 {
     if (NULL != msg1) PR_fprintf(err, "%s ", msg1);
     PL_FPrintError(err, msg2);
     failed = PR_TRUE;
 }  /* Failed */
+
+#else
+#include "prlog.h"
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+static void Failed(const char *msg1, const char *msg2)
+{
+    if (NULL != msg1) printf("%s ", msg1);
+    printf (msg2);
+    failed |= PR_TRUE;
+}  /* Failed */
+
+#endif
 
 static PRSockOption Incr(PRSockOption *option)
 {
@@ -28,7 +78,7 @@ static PRSockOption Incr(PRSockOption *option)
     return (PRSockOption)val;
 }  /* Incr */
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char *argv)
 {
     PRStatus rv;
     PRFileDesc *udp = PR_NewUDPSocket();
@@ -60,6 +110,10 @@ int main(int argc, char **argv)
     err = PR_GetSpecialFD(PR_StandardError);
     PR_STDIO_INIT();
 
+#ifdef XP_MAC
+	SetupMacPrintfLog("sockopt.log");
+#endif
+
     if (NULL == udp) Failed("PR_NewUDPSocket()", NULL);
     else if (NULL == tcp) Failed("PR_NewTCPSocket()", NULL);
     else
@@ -82,12 +136,10 @@ int main(int argc, char **argv)
                 case PR_SockOpt_Nonblocking:
                     data.value.non_blocking = PR_TRUE;
                     break;    
-#ifndef SYMBIAN
                 case PR_SockOpt_Linger:
                     data.value.linger.polarity = PR_TRUE;
                     data.value.linger.linger = PR_SecondsToInterval(2);          
                     break;    
-#endif
                 case PR_SockOpt_Reuseaddr:
                     data.value.reuse_addr = PR_TRUE;      
                     break;    
@@ -100,7 +152,6 @@ int main(int argc, char **argv)
                 case PR_SockOpt_SendBufferSize:  
                     data.value.send_buffer_size = segment;  
                     break;    
-#ifndef SYMBIAN
                 case PR_SockOpt_IpTimeToLive:
                     data.value.ip_ttl = 64;  
                     break;    
@@ -115,7 +166,6 @@ int main(int argc, char **argv)
                     fd = udp; 
                     data.value.mcast_loopback = PR_TRUE; 
                     break;    
-#endif
                 case PR_SockOpt_NoDelay:
                     data.value.no_delay = PR_TRUE;         
                     break;    
@@ -124,12 +174,10 @@ int main(int argc, char **argv)
                     data.value.max_segment = segment;      
                     break;    
 #endif
-#ifndef SYMBIAN
                 case PR_SockOpt_Broadcast:
                     fd = udp; 
                     data.value.broadcast = PR_TRUE;         
                     break;    
-#endif
                 default: continue;
             }
 
@@ -153,7 +201,11 @@ int main(int argc, char **argv)
         PR_Close(udp);
         PR_Close(tcp);
     }
+#ifndef XP_MAC
     PR_fprintf(err, "%s\n", (failed) ? "FAILED" : "PASSED");
+#else
+   printf("%s\n", (failed) ? "FAILED" : "PASSED");
+#endif
     return (failed) ? 1 : 0;
 }  /* main */
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
 ** File: nameshm1.c -- Test Named Shared Memory
@@ -72,17 +104,8 @@
 #include <string.h>
 #include <private/primpl.h>
 
-#ifdef SYMBIAN
-#define SEM_NAME1 "c:\\data\\nameshmSEM1"
-#define SEM_NAME2 "c:\\data\\nameshmSEM2"
-#define OPT_NAME "c:\\data\\xxxNSPRshm"
-#define EXE_NAME "nspr_tests_nameshm1.exe"
-#else
 #define SEM_NAME1 "/tmp/nameshmSEM1"
 #define SEM_NAME2 "/tmp/nameshmSEM2"
-#define OPT_NAME "/tmp/xxxNSPRshm"
-#define EXE_NAME "nameshm1"
-#endif
 #define SEM_MODE  0666
 #define SHM_MODE  0666
 
@@ -106,7 +129,7 @@ PRUint32    optDelete = 1;
 PRInt32     optPing = 1000;
 PRUint32    optSize = (10 * 1024 );
 PRInt32     optClientIterations = 3;
-char        optName[NameSize] = OPT_NAME;
+char        optName[NameSize] = "/tmp/xxxNSPRshm";
 
 char buf[1024] = "";
 
@@ -423,7 +446,7 @@ static void ClientServerTest( void )
 
     strcpy( (char*)addr, "FooBar" );
 
-    child_argv[0] = EXE_NAME;
+    child_argv[0] = "nameshm1";
     child_argv[1] = "-C";
     child_argv[2] = "-p";
     sprintf( buf, "%d", optPing );
@@ -507,7 +530,7 @@ static void ClientServerTest( void )
     return;
 } /* end ClientServerTest() */
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char *argv[])
 {
     {
         /*

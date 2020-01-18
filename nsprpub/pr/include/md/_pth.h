@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nspr_pth_defs_h_
 #define nspr_pth_defs_h_
@@ -66,14 +98,12 @@
 #else
 #define _PT_PTHREAD_MUTEX_IS_LOCKED(m)    (EBUSY == pthread_mutex_trylock(&(m)))
 #endif
-#if defined(ANDROID)
-/* Conditional attribute init and destroy aren't implemented in bionic. */
+#if defined(DARWIN)
 #define _PT_PTHREAD_CONDATTR_INIT(x)      0
-#define _PT_PTHREAD_CONDATTR_DESTROY(x)   /* */
 #else
 #define _PT_PTHREAD_CONDATTR_INIT         pthread_condattr_init
-#define _PT_PTHREAD_CONDATTR_DESTROY      pthread_condattr_destroy
 #endif
+#define _PT_PTHREAD_CONDATTR_DESTROY      pthread_condattr_destroy
 #define _PT_PTHREAD_COND_INIT(m, a)       pthread_cond_init(&(m), &(a))
 #endif
 
@@ -116,8 +146,12 @@
 	|| defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
 	|| defined(HPUX) || defined(FREEBSD) \
 	|| defined(NETBSD) || defined(OPENBSD) || defined(BSDI) \
-	|| defined(NTO) || defined(DARWIN) \
+	|| defined(VMS) || defined(NTO) || defined(DARWIN) \
 	|| defined(UNIXWARE) || defined(RISCOS)	|| defined(SYMBIAN)
+#ifdef __GNU__
+/* Hurd pthreads don't have an invalid value for pthread_t. -- rmh */
+#error Using Hurd pthreads
+#endif
 #define _PT_PTHREAD_INVALIDATE_THR_HANDLE(t)  (t) = 0
 #define _PT_PTHREAD_THR_HANDLE_IS_INVALID(t)  (t) == 0
 #define _PT_PTHREAD_COPY_THR_HANDLE(st, dt)   (dt) = (st)
@@ -169,12 +203,12 @@
 #if (defined(AIX) && !defined(AIX4_3_PLUS)) \
 	|| defined(LINUX) || defined(__GNU__)|| defined(__GLIBC__) \
 	|| defined(FREEBSD) || defined(NETBSD) || defined(OPENBSD) \
-	|| defined(BSDI) || defined(UNIXWARE) \
+	|| defined(BSDI) || defined(VMS) || defined(UNIXWARE) \
 	|| defined(DARWIN) || defined(SYMBIAN)
 #define PT_NO_SIGTIMEDWAIT
 #endif
 
-#if defined(OSF1)
+#if defined(OSF1) || defined(VMS)
 #define PT_PRIO_MIN            PRI_OTHER_MIN
 #define PT_PRIO_MAX            PRI_OTHER_MAX
 #elif defined(IRIX)
@@ -240,7 +274,7 @@
  */
 #if defined(_PR_DCETHREADS)
 #define _PT_PTHREAD_YIELD()            	pthread_yield()
-#elif defined(OSF1)
+#elif defined(OSF1) || defined(VMS)
 /*
  * sched_yield can't be called from a signal handler.  Must use
  * the _np version.

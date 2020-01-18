@@ -1,8 +1,43 @@
 dnl -*- Mode: Autoconf; tab-width: 4; indent-tabs-mode: nil; -*-
 dnl 
-dnl This Source Code Form is subject to the terms of the Mozilla Public
-dnl License, v. 2.0. If a copy of the MPL was not distributed with this
-dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
+dnl ***** BEGIN LICENSE BLOCK *****
+dnl Version: MPL 1.1/GPL 2.0/LGPL 2.1
+dnl
+dnl The contents of this file are subject to the Mozilla Public License Version
+dnl 1.1 (the "License"); you may not use this file except in compliance with
+dnl the License. You may obtain a copy of the License at
+dnl http://www.mozilla.org/MPL/
+dnl
+dnl Software distributed under the License is distributed on an "AS IS" basis,
+dnl WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+dnl for the specific language governing rights and limitations under the
+dnl License.
+dnl
+dnl The Original Code is the Netscape Portable Runtime (NSPR).
+dnl
+dnl The Initial Developer of the Original Code is
+dnl Netscape Communications Corporation.
+dnl Portions created by the Initial Developer are Copyright (C) 1998
+dnl the Initial Developer. All Rights Reserved.
+dnl
+dnl Contributor(s):
+dnl   Christopher Seawood <cls@seawood.org>
+dnl   Howard Chu <hyc@symas.com>
+dnl   Mark Mentovai <mark@moxienet.com>
+dnl
+dnl Alternatively, the contents of this file may be used under the terms of
+dnl either the GNU General Public License Version 2 or later (the "GPL"), or
+dnl the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+dnl in which case the provisions of the GPL or the LGPL are applicable instead
+dnl of those above. If you wish to allow use of your version of this file only
+dnl under the terms of either the GPL or the LGPL, and not to allow others to
+dnl use your version of this file under the terms of the MPL, indicate your
+dnl decision by deleting the provisions above and replace them with the notice
+dnl and other provisions required by the GPL or the LGPL. If you do not delete
+dnl the provisions above, a recipient may use your version of this file under
+dnl the terms of any one of the MPL, the GPL or the LGPL.
+dnl
+dnl ***** END LICENSE BLOCK *****
 
 AC_PREREQ(2.12)
 AC_INIT(config/libc_r.h)
@@ -14,8 +49,8 @@ dnl ========================================================
 dnl = Defaults
 dnl ========================================================
 MOD_MAJOR_VERSION=4
-MOD_MINOR_VERSION=10
-MOD_PATCH_VERSION=2
+MOD_MINOR_VERSION=7
+MOD_PATCH_VERSION=6
 NSPR_MODNAME=nspr20
 _HAVE_PTHREADS=
 USE_PTHREADS=
@@ -43,10 +78,6 @@ MACOS_SDK_DIR=
 NEXT_ROOT=
 MT=
 MOZ_OS2_HIGH_MEMORY=1
-PROFILE_GEN_CFLAGS=
-PROFILE_GEN_LDFLAGS=
-PROFILE_USE_CFLAGS=
-PROFILE_USE_LDFLAGS=
 
 dnl Link in libraries necessary to resolve all symbols for shared libs
 RESOLVE_LINK_SYMBOLS=
@@ -94,185 +125,6 @@ if test -n "$_WIN32_MSVC"; then
     SKIP_PATH_CHECKS=1
     SKIP_COMPILER_CHECKS=1
     SKIP_LIBRARY_CHECKS=1
-fi
-
-dnl ========================================================
-dnl = Android uses a very custom (hacky) toolchain; we need to do this
-dnl = here, so that the compiler checks can succeed
-dnl ========================================================
-
-AC_ARG_WITH(android-ndk,
-[  --with-android-ndk=DIR
-                          location where the Android NDK can be found],
-    android_ndk=$withval)
-
-AC_ARG_WITH(android-toolchain,
-[  --with-android-toolchain=DIR
-                          location of the Android toolchain],
-    android_toolchain=$withval)
-
-dnl The default android_version is different for each target cpu.
-case "$target_cpu" in
-arm)
-    android_version=5
-    ;;
-i?86|mipsel)
-    android_version=9
-    ;;
-esac
-
-AC_ARG_WITH(android-version,
-[  --with-android-version=VER
-                          Android platform version, default 5 for arm, 9 for x86/mips],
-    android_version=$withval)
-
-AC_ARG_WITH(android-platform,
-[  --with-android-platform=DIR
-                          location of platform dir],
-    android_platform=$withval)
-
-case "$target" in
-arm-linux*-android*|*-linuxandroid*)
-    android_tool_prefix="arm-linux-androideabi"
-    ;;
-i?86-*android*)
-    android_tool_prefix="i686-linux-android"
-    ;;
-mipsel-*android*)
-    android_tool_prefix="mipsel-linux-android"
-    ;;
-*)
-    android_tool_prefix="$target_os"
-    ;;
-esac
-
-dnl ========================================================
-dnl = Gonk is a fork of Android used for Mozilla's B2G project.
-dnl = Configuration is done largely by the top level config
-dnl = and the specified gonk directory doesn't matter here.
-dnl ========================================================
-
-AC_ARG_WITH(gonk,
-[  --with-gonk=DIR         location of gonk dir],
-    gonkdir=$withval)
-
-if test -n "$gonkdir" ; then
-    dnl Most things are directly configured by env vars when building for gonk
-
-    dnl prevent cross compile section from using these flags as host flags
-    if test -z "$HOST_CPPFLAGS" ; then
-        HOST_CPPFLAGS=" "
-    fi
-    if test -z "$HOST_CFLAGS" ; then
-        HOST_CFLAGS=" "
-    fi
-    if test -z "$HOST_CXXFLAGS" ; then
-        HOST_CXXFLAGS=" "
-    fi
-    if test -z "$HOST_LDFLAGS" ; then
-        HOST_LDFLAGS=" "
-    fi
-
-    AC_DEFINE(ANDROID)
-else
-case "$target" in
-*-android*|*-linuxandroid*)
-    if test -z "$android_ndk" ; then
-       AC_MSG_ERROR([You must specify --with-android-ndk=/path/to/ndk when targeting Android.])
-    fi
-
-    if test -z "$android_toolchain" ; then
-        AC_MSG_CHECKING([for android toolchain directory])
-
-        kernel_name=`uname -s | tr "[[:upper:]]" "[[:lower:]]"`
-
-        case "$target_cpu" in
-        arm)
-            target_name=arm-linux-androideabi-4.4.3
-            ;;
-        i?86)
-            target_name=x86-4.4.3
-            ;;
-        mipsel)
-            target_name=mipsel-linux-android-4.4.3
-            ;;
-        esac
-        android_toolchain="$android_ndk"/toolchains/$target_name/prebuilt/$kernel_name-x86
-
-        if test -d "$android_toolchain" ; then
-            AC_MSG_RESULT([$android_toolchain])
-        else
-            AC_MSG_ERROR([not found. You have to specify --with-android-toolchain=/path/to/ndk/toolchain.])
-        fi
-    fi
-
-    if test -z "$android_platform" ; then
-        AC_MSG_CHECKING([for android platform directory])
-
-        case "$target_cpu" in
-        arm)
-            target_name=arm
-            ;;
-        i?86)
-            target_name=x86
-            ;;
-        mipsel)
-            target_name=mips
-            ;;
-        esac
-
-        android_platform="$android_ndk"/platforms/android-"$android_version"/arch-"$target_name"
-
-        if test -d "$android_platform" ; then
-            AC_MSG_RESULT([$android_platform])
-        else
-            AC_MSG_ERROR([not found. You have to specify --with-android-platform=/path/to/ndk/platform.])
-        fi
-    fi
-
-    dnl Old NDK support. If minimum requirement is changed to NDK r8b,
-    dnl please remove this.
-    case "$target_cpu" in
-    i?86)
-        if ! test -e "$android_toolchain"/bin/"$android_tool_prefix"-gcc; then
-            dnl Old NDK toolchain name
-            android_tool_prefix="i686-android-linux"
-        fi
-        ;;
-    esac
-
-    dnl set up compilers
-    AS="$android_toolchain"/bin/"$android_tool_prefix"-as
-    CC="$android_toolchain"/bin/"$android_tool_prefix"-gcc
-    CXX="$android_toolchain"/bin/"$android_tool_prefix"-g++
-    CPP="$android_toolchain"/bin/"$android_tool_prefix"-cpp
-    LD="$android_toolchain"/bin/"$android_tool_prefix"-ld
-    AR="$android_toolchain"/bin/"$android_tool_prefix"-ar
-    RANLIB="$android_toolchain"/bin/"$android_tool_prefix"-ranlib
-    STRIP="$android_toolchain"/bin/"$android_tool_prefix"-strip
-
-    CPPFLAGS="-I$android_platform/usr/include $CPPFLAGS"
-    CFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CFLAGS"
-    CXXFLAGS="-mandroid -I$android_platform/usr/include -fpic -fno-short-enums -fno-exceptions $CXXFLAGS"
-    LDFLAGS="-mandroid -L$android_platform/usr/lib -Wl,-rpath-link=$android_platform/usr/lib --sysroot=$android_platform $LDFLAGS"
-
-    dnl prevent cross compile section from using these flags as host flags
-    if test -z "$HOST_CPPFLAGS" ; then
-        HOST_CPPFLAGS=" "
-    fi
-    if test -z "$HOST_CFLAGS" ; then
-        HOST_CFLAGS=" "
-    fi
-    if test -z "$HOST_CXXFLAGS" ; then
-        HOST_CXXFLAGS=" "
-    fi
-    if test -z "$HOST_LDFLAGS" ; then
-        HOST_LDFLAGS=" "
-    fi
-
-    AC_DEFINE(ANDROID)
-    ;;
-esac
 fi
 
 dnl ========================================================
@@ -329,57 +181,35 @@ AC_ARG_WITH(mozilla,
 	    fi])
 
 AC_ARG_ENABLE(optimize,
-    [  --enable-optimize[=OPT] Enable code optimizations (ie. -O2) ],
+    [  --enable-optimize(=val) Enable code optimizations (val, ie. -O2) ],
     [ if test "$enableval" != "no"; then
-          MOZ_OPTIMIZE=1
-          if test -n "$enableval" -a "$enableval" != "yes"; then
-            _OPTIMIZE_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
+        MOZ_OPTIMIZE=1
+        if test -n "$enableval" && test "$enableval" != "yes"; then
+    	    _OPTIMIZE_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
             _SAVE_OPTIMIZE_FLAGS=$_OPTIMIZE_FLAGS
-          fi
+        fi
       else
-          MOZ_OPTIMIZE=
-      fi ])
+        MOZ_OPTIMIZE=
+    fi ])
 
 AC_ARG_ENABLE(debug,
-    [  --enable-debug[=DBG]    Enable debugging (using compiler flags DBG)],
-    [ if test "$enableval" != "no"; then
-          MOZ_DEBUG=1
-          MOZ_DEBUG_SYMBOLS=1
-          if test -n "$enableval" -a "$enableval" != "yes"; then
-              _DEBUG_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
-              _SAVE_DEBUG_FLAGS=$_DEBUG_FLAGS
-          fi
-      else
-          MOZ_DEBUG=
-      fi ],
-      MOZ_DEBUG_SYMBOLS=1)
-
-AC_ARG_ENABLE(debug-symbols,
-    [  --enable-debug-symbols[=DBG]    Enable debugging symbols
-                                       (using compiler flags DBG)],
-    [ if test "$enableval" != "no"; then
-          MOZ_DEBUG_SYMBOLS=1
-          if test -n "$enableval" -a "$enableval" != "yes"; then
-              if test -z "$_SAVE_DEBUG_FLAGS"; then
-                  _DEBUG_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
-                  _SAVE_DEBUG_FLAGS=$_DEBUG_FLAGS
-              else
-                  AC_MSG_ERROR([--enable-debug-symbols flags cannot be used with --enable-debug flags])
-              fi
-          fi
-      else
-          MOZ_DEBUG_SYMBOLS=
-      fi ])
+    [  --disable-debug         Do not compile in debugging symbols
+  --enable-debug(=val)    Enable debugging (debug flags val)],
+    [	if test "$enableval" = "no"; then
+    	    MOZ_DEBUG=
+        else
+            MOZ_DEBUG=1
+            if test -n "$enableval" && test "$enableval" != "yes"; then
+                _DEBUG_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
+                _SAVE_DEBUG_FLAGS=$_DEBUG_FLAGS
+            fi
+        fi])
 
 AC_ARG_ENABLE(win32-target,
     [  --enable-win32-target=\$t
                           Specify win32 flavor. (WIN95 or WINNT)],
-    OS_TARGET=`echo $enableval | tr a-z A-Z`)
-
-AC_ARG_ENABLE(symbian-target,
-    [  --enable-symbian-target=\$t
-                          Specify symbian flavor. (WINSCW or GCCE)],
-    OS_TARGET=`echo $enableval | tr a-z A-Z`)
+    OS_TARGET=`echo $enableval | tr a-z A-Z`,
+    OS_TARGET=)
 
 AC_ARG_ENABLE(debug-rtl,
     [  --enable-debug-rtl      Use the MSVC debug runtime library],
@@ -478,6 +308,10 @@ if test -z "$CC"; then
         CC=cc
     ;;
 
+    *-openvms*)
+        CC=cc
+    ;;
+
     *-osf*)
         CC=cc
     ;;
@@ -523,6 +357,10 @@ if test -z "$CXX"; then
         CXX=CC
     ;;
 
+    *-openvms*)
+        CXX=cxx
+    ;;
+
     *-osf*)
         CXX=cxx
     ;;
@@ -546,7 +384,7 @@ if test -n "$MOZ_DEBUG"; then
     beos*)
         DEFINES="$DEFINES -DDEBUG_${USER}"
         ;;
-    msvc*|mks*|cygwin*|mingw*|wince*|winmo*|os2*)
+    msvc*|mks*|cygwin*|mingw*|os2*)
         DEFINES="$DEFINES -DDEBUG_`echo ${USERNAME} | sed -e 's| |_|g'`"
         ;;
     *) 
@@ -562,11 +400,7 @@ if test -z "$SKIP_COMPILER_CHECKS"; then
 dnl ========================================================
 dnl Checks for compilers.
 dnl ========================================================
-
-dnl Explicitly honor $CROSS_COMPILE to allow cross-compiling
-dnl between toolkits on the same architecture, as when
-dnl targeting the iOS Simulator from OS X.
-if test "$target" != "$host" -o -n "$CROSS_COMPILE"; then
+if test "$target" != "$host"; then
     echo "cross compiling from $host to $target"
     cross_compiling=yes
 
@@ -592,9 +426,9 @@ if test "$target" != "$host" -o -n "$CROSS_COMPILE"; then
     LDFLAGS="$HOST_LDFLAGS"
 
     AC_MSG_CHECKING([whether the $host compiler ($HOST_CC $HOST_CFLAGS $HOST_LDFLAGS) works])
-    AC_TRY_COMPILE([], [return 0;],
-        [AC_MSG_RESULT([yes])],
-        [AC_MSG_ERROR([installation or configuration problem: $host compiler $HOST_CC cannot create executables.])] )
+    AC_TRY_COMPILE([], [return(0);], 
+        [ac_cv_prog_host_cc_works=1 AC_MSG_RESULT([yes])],
+        AC_MSG_ERROR([installation or configuration problem: $host compiler $HOST_CC cannot create executables.]) )
 
     CC=$_SAVE_CC
     CFLAGS=$_SAVE_CFLAGS
@@ -608,20 +442,11 @@ if test "$target" != "$host" -o -n "$CROSS_COMPILE"; then
         dnl versions of PPC OS X 10.4 aren't fat, so these target compiler
         dnl checks will fail.  Fake a working SDK in that case.
         _SAVE_CFLAGS=$CFLAGS 
-        _SAVE_CXXFLAGS=$CXXFLAGS
+        _SAVE_CXXFLAGS=$CXXLAGS
         CFLAGS="-isysroot /Developer/SDKs/MacOSX10.4u.sdk $CFLAGS"
         CXXFLAGS="-isysroot /Developer/SDKs/MacOSX10.4u.sdk $CXXFLAGS"
-        ;;
-      *:arm*-apple-darwin*)
-        dnl The arm compiler doesn't appear to know about its root by default,
-        dnl so explicitly pass it one here. Later on we'll put this in CFLAGS
-        dnl anyway.
-        _SAVE_CFLAGS=$CFLAGS
-        _SAVE_CXXFLAGS=$CXXFLAGS
-        CFLAGS="-isysroot $MACOS_SDK_DIR $CFLAGS"
-        CXXFLAGS="-isysroot $MACOS_SDK_DIR $CXXFLAGS"
-        ;;
-    esac
+        ;;        
+    esac            
 
     AC_CHECK_PROGS(CC, $CC "${target_alias}-gcc" "${target}-gcc", echo)
     unset ac_cv_prog_CC
@@ -633,7 +458,7 @@ if test "$target" != "$host" -o -n "$CROSS_COMPILE"; then
     fi
 
     case "$build:$target" in
-      powerpc-apple-darwin8*:i?86-apple-darwin*|*:arm*-apple-darwin*)
+      powerpc-apple-darwin8*:i?86-apple-darwin*)
         dnl Revert the changes made above.  From this point on, the target
         dnl compiler will never be used without applying the SDK to CFLAGS
         dnl (see --with-macos-sdk below).
@@ -735,29 +560,6 @@ else
     AC_MSG_RESULT([no])
 fi
 
-dnl ========================================================
-dnl Profile guided optimization
-dnl ========================================================
-dnl Test for profiling options
-dnl Under gcc 3.4+, use -fprofile-generate/-fprofile-use
-
-_SAVE_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -fprofile-generate -fprofile-correction"
-
-AC_MSG_CHECKING([whether C compiler supports -fprofile-generate])
-AC_TRY_COMPILE([], [return 0;],
-               [ PROFILE_GEN_CFLAGS="-fprofile-generate"
-                 result="yes" ], result="no")
-AC_MSG_RESULT([$result])
-
-if test $result = "yes"; then
-   PROFILE_GEN_LDFLAGS="-fprofile-generate"
-   PROFILE_USE_CFLAGS="-fprofile-use -fprofile-correction -Wcoverage-mismatch"
-   PROFILE_USE_LDFLAGS="-fprofile-use"
-fi
-
-CFLAGS="$_SAVE_CFLAGS"
-
 dnl ===============================================================
 dnl Check for .hidden assembler directive and visibility attribute.
 dnl Borrowed from glibc configure.in
@@ -849,10 +651,7 @@ if test -n "$CROSS_COMPILE"; then
         linux*)       OS_ARCH=Linux ;;
         solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
         mingw*)       OS_ARCH=WINNT ;;
-        wince*)       OS_ARCH=WINCE ;;
-        winmo*)       OS_ARCH=WINCE ;;
         darwin*)      OS_ARCH=Darwin ;;
-        riscos*)      OS_ARCH=RISCOS ;;
     esac
 else
     OS_ARCH=`uname -s | sed -e 's|/|_|g'`
@@ -877,6 +676,10 @@ if test "$OS_ARCH" = "Linux"; then
     OS_RELEASE=`echo $OS_RELEASE | awk -F\. '{ print $1 "." $2 }'`
 fi
 
+if test "$OS_ARCH" = "OpenVMS"; then
+    OS_RELEASE=`uname -v`
+fi
+
 #######################################################################
 # Master "Core Components" macros for getting the OS target           #
 #######################################################################
@@ -889,6 +692,9 @@ fi
 # in Windows 95. The Win95 target will run on Windows NT, but (supposedly)
 # at lesser performance (the Win95 target uses threads; the WinNT target
 # uses fibers).
+#
+# When OS_TARGET=WIN16 is specified, then a Windows 3.11 (16bit) target
+# is built. See: win16_3.11.mk for lots more about the Win16 target.
 #
 # If OS_TARGET is not specified, it defaults to $(OS_ARCH), i.e., no
 # cross-compilation.
@@ -988,6 +794,9 @@ fi
 if test "$OS_TARGET" = "WIN95"; then
     OS_RELEASE="4.0"
 fi
+if test "$OS_TARGET" = "WIN16"; then
+    OS_RELEASE=
+fi
 OS_CONFIG="${OS_TARGET}${OS_RELEASE}"
 
 dnl ========================================================
@@ -1002,178 +811,13 @@ AC_ARG_ENABLE(os2-high-mem,
       fi ])
 
 dnl ========================================================
-dnl = ARM toolchain tweaks
-dnl ========================================================
-
-dnl Defaults
-case "$target" in
-arm*-android*|arm*-linuxandroid*)
-    MOZ_THUMB=yes
-    MOZ_ARCH=armv7-a
-    MOZ_FPU=vfp
-    MOZ_FLOAT_ABI=softfp
-    MOZ_SOFT_FLOAT=yes
-    ;;
-arm*-*)
-    if test -n "$MOZ_PLATFORM_MAEMO"; then
-        MOZ_THUMB=no
-        MOZ_ARCH=armv7-a
-        MOZ_FLOAT_ABI=softfp
-    fi
-    if test "$MOZ_PLATFORM_MAEMO" = 6; then
-        MOZ_THUMB=yes
-    fi
-    ;;
-esac
-
-dnl Kept for compatibility with some buildbot mozconfig
-AC_ARG_ENABLE(thumb2, [], MOZ_THUMB=$enableval)
-
-AC_ARG_WITH(thumb,
-[  --with-thumb[[=yes|no|toolchain-default]]]
-[                          Use Thumb instruction set (-mthumb)],
-    if test -z "$GNU_CC"; then
-        AC_MSG_ERROR([--with-thumb is not supported on non-GNU toolchain-defaults])
-    fi
-    MOZ_THUMB=$withval)
-
-AC_ARG_WITH(thumb-interwork,
-[  --with-thumb-interwork[[=yes|no|toolchain-default]]
-                           Use Thumb/ARM instuctions interwork (-mthumb-interwork)],
-    if test -z "$GNU_CC"; then
-        AC_MSG_ERROR([--with-thumb-interwork is not supported on non-GNU toolchain-defaults])
-    fi
-    MOZ_THUMB_INTERWORK=$withval)
-
-AC_ARG_WITH(arch,
-[  --with-arch=[[type|toolchain-default]]
-                           Use specific CPU features (-march=type)],
-    if test -z "$GNU_CC"; then
-        AC_MSG_ERROR([--with-arch is not supported on non-GNU toolchain-defaults])
-    fi
-    MOZ_ARCH=$withval)
-
-AC_ARG_WITH(fpu,
-[  --with-fpu=[[type|toolchain-default]]
-                           Use specific FPU type (-mfpu=type)],
-    if test -z "$GNU_CC"; then
-        AC_MSG_ERROR([--with-fpu is not supported on non-GNU toolchain-defaults])
-    fi
-    MOZ_FPU=$withval)
-
-AC_ARG_WITH(float-abi,
-[  --with-float-abi=[[type|toolchain-default]]
-                           Use specific arm float ABI (-mfloat-abi=type)],
-    if test -z "$GNU_CC"; then
-        AC_MSG_ERROR([--with-float-abi is not supported on non-GNU toolchain-defaults])
-    fi
-    MOZ_FLOAT_ABI=$withval)
-
-AC_ARG_WITH(soft-float,
-[  --with-soft-float[[=yes|no|toolchain-default]]
-                           Use soft float library (-msoft-float)],
-    if test -z "$GNU_CC"; then
-        AC_MSG_ERROR([--with-soft-float is not supported on non-GNU toolchain-defaults])
-    fi
-    MOZ_SOFT_FLOAT=$withval)
-
-case "$MOZ_ARCH" in
-toolchain-default|"")
-    arch_flag=""
-    ;;
-*)
-    arch_flag="-march=$MOZ_ARCH"
-    ;;
-esac
-
-case "$MOZ_THUMB" in
-yes)
-    MOZ_THUMB2=1
-    thumb_flag="-mthumb"
-    ;;
-no)
-    MOZ_THUMB2=
-    thumb_flag="-marm"
-    ;;
-*)
-    _SAVE_CFLAGS="$CFLAGS"
-    CFLAGS="$arch_flag"
-    AC_TRY_COMPILE([],[return sizeof(__thumb2__);],
-        MOZ_THUMB2=1,
-        MOZ_THUMB2=)
-    CFLAGS="$_SAVE_CFLAGS"
-    thumb_flag=""
-    ;;
-esac
-
-case "$MOZ_THUMB_INTERWORK" in
-yes)
-    thumb_interwork_flag="-mthumb-interwork"
-    ;;
-no)
-    thumb_interwork_flag="-mno-thumb-interwork"
-    ;;
-*) # toolchain-default
-    thumb_interwork_flag=""
-    ;;
-esac
-
-case "$MOZ_FPU" in
-toolchain-default|"")
-    fpu_flag=""
-    ;;
-*)
-    fpu_flag="-mfpu=$MOZ_FPU"
-    ;;
-esac
-
-case "$MOZ_FLOAT_ABI" in
-toolchain-default|"")
-    float_abi_flag=""
-    ;;
-*)
-    float_abi_flag="-mfloat-abi=$MOZ_FLOAT_ABI"
-    ;;
-esac
-
-case "$MOZ_SOFT_FLOAT" in
-yes)
-    soft_float_flag="-msoft-float"
-    ;;
-no)
-    soft_float_flag="-mno-soft-float"
-    ;;
-*) # toolchain-default
-    soft_float_flag=""
-    ;;
-esac
-
-dnl Use echo to avoid accumulating space characters
-all_flags=`echo $arch_flag $thumb_flag $thumb_interwork_flag $fpu_flag $float_abi_flag $soft_float_flag`
-if test -n "$all_flags"; then
-    _SAVE_CFLAGS="$CFLAGS"
-    CFLAGS="$all_flags"
-    AC_MSG_CHECKING(whether the chosen combination of compiler flags ($all_flags) works)
-    AC_TRY_COMPILE([],[return 0;],
-        AC_MSG_RESULT([yes]),
-        AC_MSG_ERROR([no]))
-
-    CFLAGS="$_SAVE_CFLAGS $all_flags"
-    CXXFLAGS="$CXXFLAGS $all_flags"
-    ASFLAGS="$ASFLAGS $all_flags"
-    if test -n "$thumb_flag"; then
-        LDFLAGS="$LDFLAGS $thumb_flag"
-    fi
-fi
-
-dnl ========================================================
 dnl Override of system specific host options
 dnl ========================================================
 case "$host" in
 *-mingw*)
     NSINSTALL=nsinstall
     ;;
-*-cygwin*|*-msvc*|*-mks*|*-wince*|*-winmo*)
+*-cygwin*|*-msvc*|*-mks*)
     NSINSTALL='$(CYGWIN_WRAPPER) nsinstall'
     if test `echo "${PATH}" | grep -c \;` = 0; then
         CYGWIN_WRAPPER='sh $(topsrcdir)/build/cygwin-wrapper'
@@ -1352,34 +996,22 @@ case "$target" in
     AC_DEFINE(XP_UNIX)
     AC_DEFINE(DARWIN)
     AC_DEFINE(HAVE_BSD_FLOCK)
-    AC_DEFINE(HAVE_SOCKLEN_T)
-    AS='$(CC) -x assembler-with-cpp'
-    CFLAGS="$CFLAGS -Wall -fno-common"
+    CFLAGS="$CFLAGS -Wmost -fno-common"
     case "${target_cpu}" in
-        arm*)
-            CPU_ARCH=arm
-            ;;
         i*86*)
             if test -n "$USE_64"; then
                 CPU_ARCH=x86_64
+                CC="$CC -arch x86_64"
             else        
                 CPU_ARCH=i386
             fi
-            ;;
-        x86_64)
-            CPU_ARCH=x86_64
             ;;
         *)
             CPU_ARCH=ppc
             ;;
     esac
-    if test "`echo $CC | grep -c '\-arch '`" = "0"; then
-        CC="$CC -arch $CPU_ARCH"
-    fi
-    AC_CHECK_HEADER(crt_externs.h)
     DSO_CFLAGS=-fPIC
     DSO_LDOPTS='-dynamiclib -compatibility_version 1 -current_version 1 -all_load -install_name @executable_path/$@ -headerpad_max_install_names'
-    _OPTIMIZE_FLAGS=-O2
     MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
     STRIP="$STRIP -x -S"
     DLL_SUFFIX=dylib
@@ -1389,7 +1021,7 @@ case "$target" in
     PR_MD_ASFILES=os_Darwin.s
 
     # Add Mac OS X support for loading CFM & CFBundle plugins
-    if test -f "${MACOS_SDK_DIR}/System/Library/Frameworks/Carbon.framework/Carbon"; then
+    if test -f /System/Library/Frameworks/Carbon.framework/Carbon; then
         AC_DEFINE(XP_MACOSX)
         OS_TARGET=MacOSX
 
@@ -1467,7 +1099,11 @@ tools are selected during the Xcode/Developer Tools installation.])
                     MACOS_SDK_LIBS="-Wl,-syslibroot,${MACOS_SDK_DIR}"
                 fi
 
+                dnl LDFLAGS is for the utilities built in config (now and
+                dnl nsinstall).  DSO_LDOPTS is used when linking shared
+                dnl libraries.
                 LDFLAGS="${MACOS_SDK_LIBS} $LDFLAGS"
+                DSO_LDOPTS="${MACOS_SDK_LIBS} $DSO_LDOPTS"
                 export NEXT_ROOT=$MACOS_SDK_DIR
 
                 if test -n "$CROSS_COMPILE" ; then
@@ -1489,17 +1125,36 @@ tools are selected during the Xcode/Developer Tools installation.])
                 dnl has an ld that supports -syslibroot.  Don't set
                 dnl NEXT_ROOT because it will be ignored and cause
                 dnl warnings when -syslibroot is specified.
+                dnl
+                dnl Both LDFLAGS and DSO_LDOPTS are set here, see the
+                dnl gcc < 4.0 case for the explanation.
                 if test "$GCC_VERSION_FULL" != "4.0.0" ; then
                     dnl gcc > 4.0.0 will pass -syslibroot to ld automatically
                     dnl based on the -isysroot it receives.
                     LDFLAGS="$LDFLAGS -isysroot ${MACOS_SDK_DIR}"
+                    DSO_LDOPTS="$DSO_LDOPTS -isysroot ${MACOS_SDK_DIR}"
                 else
                     dnl gcc 4.0.0 doesn't pass -syslibroot to ld, it needs
                     dnl to be explicit.
                     LDFLAGS="$LDFLAGS -Wl,-syslibroot,${MACOS_SDK_DIR}"
+                    DSO_LDOPTS="$DSO_LDOPTS -Wl,-syslibroot,${MACOS_SDK_DIR}"
                 fi
             fi
         fi
+    fi
+
+    AC_MSG_CHECKING(for socklen_t)
+    AC_CACHE_VAL(ac_cv_socklen_t,
+        [AC_TRY_COMPILE([#include <stdio.h>
+                         #include <sys/socket.h>],
+                        [socklen_t foo = 0;],
+                        [ac_cv_socklen_t=true],
+                        [ac_cv_socklen_t=false])])
+    if test "$ac_cv_socklen_t" = true ; then
+        AC_DEFINE(HAVE_SOCKLEN_T)
+        AC_MSG_RESULT(yes)
+    else
+        AC_MSG_RESULT(no)
     fi
     ;;
 
@@ -1576,7 +1231,6 @@ tools are selected during the Xcode/Developer Tools installation.])
         DSO_CFLAGS=+Z
     else
         DSO_CFLAGS=-fPIC
-        ASFLAGS="$ASFLAGS -x assembler-with-cpp"
     fi
 
     if test -n "$MOZILLA_CLIENT"; then
@@ -1788,7 +1442,7 @@ tools are selected during the Xcode/Developer Tools installation.])
 	esac
     ;;
 
-*-linux*|*-gnu*|*-k*bsd*-gnu|*-android*|*-linuxandroid*)
+*-linux*|*-gnu*|*-k*bsd*-gnu)
     if test -z "$USE_NSPR_THREADS"; then
         USE_PTHREADS=1
         IMPL_STRATEGY=_PTH
@@ -1796,12 +1450,8 @@ tools are selected during the Xcode/Developer Tools installation.])
     AC_DEFINE(XP_UNIX)
     AC_DEFINE(_GNU_SOURCE)
     AC_DEFINE(HAVE_FCNTL_FILE_LOCKING)
-    case "${target}" in
-    *-android*|*-linuxandroid*)
-        OS_TARGET=Android
-        AC_DEFINE(LINUX)
-        ;;
-    *-linux*)
+    case "${target_os}" in
+    linux*)
         AC_DEFINE(LINUX)
         ;;
     esac
@@ -1873,8 +1523,8 @@ tools are selected during the Xcode/Developer Tools installation.])
     RESOLVE_LINK_SYMBOLS=1
 
     if test -n "$GNU_CC"; then
-        CC="$CC -mwindows"
-        CXX="$CXX -mwindows"
+        CC="$CC -mno-cygwin"
+        CXX="$CXX -mno-cygwin"
         DLL_SUFFIX=dll
         MKSHLIB='$(CC) -shared -Wl,--export-all-symbols -Wl,--out-implib -Wl,$(IMPORT_LIBRARY) $(DLLBASE) -o $(subst $(OBJDIR)/,,$(SHARED_LIBRARY))'
         RC=$WINDRES
@@ -1895,36 +1545,10 @@ tools are selected during the Xcode/Developer Tools installation.])
         DLL_SUFFIX=dll
 
         # Determine compiler version
-        changequote(,)
-        _MSVC_VER_FILTER='s|.* \([0-9]\+\.[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?\).*|\1|p'
-        changequote([,])
-        CC_VERSION=`"${CC}" -v 2>&1 | sed -ne "$_MSVC_VER_FILTER"`
-        _CC_MAJOR_VERSION=`echo ${CC_VERSION} | awk -F\. '{ print $1 }'`
-        _CC_MINOR_VERSION=`echo ${CC_VERSION} | awk -F\. '{ print $2 }'`
-        _CC_RELEASE=`echo ${CC_VERSION} | awk -F\. '{ print $3 }'`
-        _CC_BUILD=`echo ${CC_VERSION} | awk -F\. '{ print $4 }'`
+        CC_VERSION=`"${CC}" -v 2>&1 | grep Version | sed -e 's|.* Version ||' -e 's| .*||'`
+        _CC_MAJOR_VERSION=`echo $CC_VERSION | awk -F\. '{ print $1 }'`
+        _CC_MINOR_VERSION=`echo $CC_VERSION | awk -F\. '{ print $2 }'`
         MSC_VER=${_CC_MAJOR_VERSION}${_CC_MINOR_VERSION}
-
-        if test "$_CC_MAJOR_VERSION" -eq "14"; then
-           dnl -DYNAMICBASE is only supported on VC8SP1 or newer,
-           dnl so be very specific here!
-           dnl VC8 is 14.00.50727.42, VC8SP1 is 14.00.50727.762
-           if test $_CC_RELEASE -gt 50727; then
-              _USE_DYNAMICBASE=1
-           elif test $_CC_BUILD -ge 762; then
-              _USE_DYNAMICBASE=1
-           fi
-           AC_DEFINE(_CRT_SECURE_NO_DEPRECATE)
-           AC_DEFINE(_CRT_NONSTDC_NO_DEPRECATE)
-        elif test $_CC_MAJOR_VERSION -ge 15; then
-           _USE_DYNAMICBASE=1    
-           AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
-           AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
-        fi
-
-        if test -n "$_USE_DYNAMICBASE"; then
-           DLLFLAGS="$DLLFLAGS -DYNAMICBASE"
-        fi
 
         # Ensure that mt is Microsoft (R) Manifest Tool and not magnetic
         # tape manipulation utility (or something else)
@@ -1948,25 +1572,8 @@ tools are selected during the Xcode/Developer Tools installation.])
         
         CFLAGS="$CFLAGS -W3 -nologo -GF -Gy"
         DLLFLAGS="$DLLFLAGS -OUT:\"\$@\""
-        _DEBUG_FLAGS=-Zi
+        _DEBUG_FLAGS=-Z7
         _OPTIMIZE_FLAGS=-O2
-
-        PROFILE_GEN_CFLAGS="-GL"
-        PROFILE_GEN_LDFLAGS="-LTCG:PGINSTRUMENT"
-        PROFILE_USE_CFLAGS="-GL -wd4624 -wd4952"
-        PROFILE_USE_LDFLAGS="-LTCG:PGUPDATE"
-
-        if test "$MSC_VER" -ge "1800"; then
-            dnl Visual C++ 2013 requires -FS when parallel building with
-            dnl make -jN. If not specified, compiler sometimes emits C1041
-            dnl error.
-            CFLAGS="$CFLAGS -FS"
-            dnl -Gw can benefit when using linker optimization on PGO.
-            dnl http://blogs.msdn.com/b/vcblog/archive/2013/09/11/introducing-gw-compiler-switch.aspx
-            PROFILE_GEN_CFLAGS="$PROFILE_GEN_CFLAGS -Gw"
-            PROFILE_USE_CFLAGS="$PROFILE_USE_CFLAGS -Gw"
-        fi
-
         if test -z "$MOZ_OPTIMIZE"; then
             CFLAGS="$CFLAGS -Od"
         fi
@@ -1983,14 +1590,22 @@ tools are selected during the Xcode/Developer Tools installation.])
             DEFINES="$DEFINES -U_DEBUG"
         fi
 
-        if test -n "$MOZ_DEBUG_SYMBOLS"; then
-            if test -n "$MOZ_OPTIMIZE"; then
+        if test -n "$MOZ_OPTIMIZE"; then
+            if test -n "$MOZ_PROFILE"; then
+                _OPTIMIZE_FLAGS="$_OPTIMIZE_FLAGS -Z7"
+            fi
+            if test -n "$MOZ_DEBUG_SYMBOLS"; then
+                _OPTIMIZE_FLAGS="$_OPTIMIZE_FLAGS -Zi"
+            fi
+            if test -n "$MOZ_PROFILE" -o -n "$MOZ_DEBUG_SYMBOLS"; then
                 DLLFLAGS="$DLLFLAGS -DEBUG -OPT:REF"
                 LDFLAGS="$LDFLAGS -DEBUG -OPT:REF"
-            else
-                DLLFLAGS="$DLLFLAGS -DEBUG"
-                LDFLAGS="$LDFLAGS -DEBUG"
             fi
+        fi
+
+        if test -n "$MOZ_DEBUG"; then
+            DLLFLAGS="$DLLFLAGS -DEBUG"
+            LDFLAGS="$LDFLAGS -DEBUG"
         fi
 
         OS_DLLFLAGS="-nologo -DLL -SUBSYSTEM:WINDOWS"
@@ -2038,6 +1653,9 @@ tools are selected during the Xcode/Developer Tools installation.])
     WIN95)
 	    MDCPUCFG_H=_win95.cfg
 	    ;;
+    WIN16)
+	    MDCPUCFG_H=_win16.cfg
+	    ;;
     *)
 	    AC_MSG_ERROR([Missing OS_TARGET for ${target}.  Use --enable-win32-target to set.])
    	;;
@@ -2047,52 +1665,77 @@ tools are selected during the Xcode/Developer Tools installation.])
     i*86)
 	if test -n "$USE_64"; then
 	    AC_DEFINE(_AMD64_)
+	    AC_DEFINE(_M_AMD64)    
 	else		
 	    AC_DEFINE(_X86_)
 	fi
         ;;
+    alpha)
+	    AC_DEFINE(_ALPHA_)
+   	    ;;
+    mips)
+	    AC_DEFINE(_MIPS_)
+	    ;;
     x86_64)
 	    AC_DEFINE(_AMD64_)
+	    AC_DEFINE(_M_AMD64)
 	    USE_64=1
 	    ;;
     ia64)
 	    AC_DEFINE(_IA64_)
+	    AC_DEFINE(_M_IA64)
 	    USE_64=1
 	    ;;
     *)
 	    AC_DEFINE(_CPU_ARCH_NOT_DEFINED)
 	    ;;
     esac
+
+    if test "$USE_64"; then
+        AC_DEFINE(_WIN64)
+    fi
+
     ;;
 
-*-wince*|*-winmo*)
-    AC_DEFINE(XP_PC)
-    AC_DEFINE(WIN32)
-    AC_DEFINE(WINCE)
-    AC_DEFINE(_PR_GLOBAL_THREADS_ONLY)
-
-    AR_FLAGS='-NOLOGO -OUT:"$@"'
-
-    OBJ_SUFFIX=obj
-    LIB_SUFFIX=lib
-    DLL_SUFFIX=dll
-    MKSHLIB='$(LD) -DLL $(DSO_LDOPTS) -OUT:$@'
-
-    PR_MD_ARCH_DIR=windows
-    RESOLVE_LINK_SYMBOLS=1
-
-    MDCPUCFG_H=_win95.cfg
-    LIBNSPR='$(dist_libdir)/nspr$(MOD_MAJOR_VERSION).$(LIB_SUFFIX)'
-    LIBPLC='$(dist_libdir)/plc$(MOD_MAJOR_VERSION).$(LIB_SUFFIX)'
-
-    DLLFLAGS='-OUT:"$@"'
-    if test -n "$MOZ_DEBUG_SYMBOLS"; then
-        OS_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
-        OS_DLLFLAGS='-DEBUG -DEBUGTYPE:CV'
-        DSO_LDOPTS='-DEBUG -DEBUGTYPE:CV'
+*-ncr-sysv*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(SYSV)
+    AC_DEFINE(NCR)
+    USE_NSPR_THREADS=1
+    if test "$OS_RELEASE" = "2.03"; then
+        AC_DEFINE(_PR_STAT_HAS_ST_ATIM)
+    else
+        AC_DEFINE(_PR_STAT_HAS_ST_ATIM_UNION)
     fi
-    _DEBUG_FLAGS=-Zi
-    _OPTIMIZE_FLAGS=-O2
+
+    if test -z "$GNU_CC"; then
+        CFLAGS="$CFLAGS -Hnocopyr"
+        CXXFLAGS="$CXXFLAGS -Hnocopyr"
+    else
+        CFLAGS="$CFLAGS -fPIC -Wall"
+        CXXFLAGS="$CXXFLAGS -fPIC -Wall"
+        DSO_LDOPTS=-G
+    fi
+    MDCPUCFG_H=_ncr.cfg
+    PR_MD_CSRCS=ncr.c
+    ;;
+
+mips-nec-sysv*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(__SVR4)
+    AC_DEFINE(NEC)
+    AC_DEFINE(nec_ews)
+    USE_NSPR_THREADS=1
+    if test -z "$GNU_CC"; then
+        CC='$(NSDEPTH)/build/hcc cc -Xa -KGnum=0 -KOlimit=4000'
+        CXX=g++
+    fi
+    OS_LIBS="$OS_LIBS -lsocket -lnsl -ldl"
+    DSO_LDOPTS=-G
+    MDCPUCFG_H=_nec.cfg
+    PR_MD_CSRCS=nec.c
     ;;
 
 *-netbsd*)
@@ -2127,6 +1770,36 @@ tools are selected during the Xcode/Developer Tools installation.])
     fi
     ;;
 
+mips-sony-newsos*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SONY)
+    AC_DEFINE(SYSV)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(__svr4)
+    AC_DEFINE(__svr4__)
+    AC_DEFINE(HAVE_SVID_GETTOD)
+    USE_NSPR_THREADS=1
+    CFLAGS="$CFLAGS -Xa -fullwarn"
+    CXXFLAGS="$CXXFLAGS -Xa -fullwarn"
+    DSO_LDOPTS=-G
+    MDCPUCFG_H=_sony.cfg
+    PR_MD_CSRCS=sony.c
+    ;;
+
+*-nextstep*|*-openstep*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(NEXTSTEP)
+    AC_DEFINE(HAVE_BSD_FLOCK)
+    AC_DEFINE(_POSIX_SOURCE)
+    CFLAGS="$CFLAGS -Wall -fno-common -traditional-cpp -posix"
+    CXXFLAGS="$CXXFLAGS -Wall -fno-common -traditional-cpp -posix"
+    USE_NSPR_THREADS=1
+    DLL_SUFFIX=dylib
+    MDCPUCFG_H=_nextstep.cfg
+    PR_MD_CSRCS=nextstep.c
+    ;;
+
+
 *-nto*)
     AC_DEFINE(XP_UNIX)
     AC_DEFINE(NTO)
@@ -2159,6 +1832,22 @@ tools are selected during the Xcode/Developer Tools installation.])
     fi
     DSO_LDOPTS='-shared -fPIC'
     MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
+    ;;
+
+*-openvms*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(VMS)
+    AC_DEFINE(PR_GETIPNODE_NOT_THREADSAFE)
+    RESOLVE_LINK_SYMBOLS=1
+    AR_FLAGS='c $@'
+    MDCPUCFG_H=_openvms.cfg
+    PR_MD_CSRCS=openvms.c
+    DSO_LDOPTS='-shared -auto_symvec $(LDFLAGS)'
+    if test -n "$MOZ_DEBUG"; then
+      DSO_LDOPTS="$DSO_LDOPTS $_DEBUG_FLAGS"
+    else
+      DSO_LDOPTS="$DSO_LDOPTS $_OPTIMIZE_FLAGS"
+    fi
     ;;
 
 *-osf*)
@@ -2218,9 +1907,8 @@ tools are selected during the Xcode/Developer Tools installation.])
     USE_PTHREADS=1
     MDCPUCFG_H=_riscos.cfg
     PR_MD_CSRCS=riscos.c
-    DSO_CFLAGS=-fPIC
-    DSO_LDOPTS='-shared -Wl,-soname -Wl,$(notdir $@)'
-    MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
+    DLL_SUFFIX=a
+    LD="/home/riscos/env/ro-ar cr"
     ;;
 
 *-*-sco*)
@@ -2237,6 +1925,66 @@ tools are selected during the Xcode/Developer Tools installation.])
     DSO_LDOPTS='-b elf -G'
     MDCPUCFG_H=_scoos.cfg
     PR_MD_SRCS=scoos.c
+    ;;
+
+*-sinix*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(SNI)
+    AC_DEFINE(RELIANTUNIX)
+    AC_DEFINE(sinix)
+    AC_DEFINE(HAVE_SVID_GETTOD)
+    if echo "$OS_TEST" | grep -c 86 2>/dev/null; then
+        AC_DEFINE(i386)
+        CPU_ARCH=x86
+    else
+        CPU_ARCH=mips
+    fi
+
+    if test "$GNU_CC"; then
+        AS='$(CC) -x assembler-with-cpp'
+        if test "$CPU_ARCH" = "mips"; then
+            LD=gld
+        fi
+        CFLAGS="$CFLAGS -Wall -Wno-format"
+    else
+        AS='/usr/bin/cc'
+        _OPTIMIZE_FLAGS='-O -F Olimit,4000'
+    fi
+
+    DSO_LDOPTS='-G -z defs -h $(@:$(OBJDIR)/%.so=%.so)'
+
+    if test "$OS_RELEASE" = "5.43"; then
+        AC_DEFINE(IP_MULTICAST)
+    fi
+
+    OS_LIBS="$OS_LIBS -lsocket -lnsl -lresolv -ldl -lc"
+    USE_NSPR_THREADS=1
+    MDCPUCFG_H=_reliantunix.cfg
+    PR_MD_CSRCS=reliantunix.c
+    if test "${OS_ARCH}" = "mips"; then
+        PR_MD_ASFILES=os_ReliantUNIX.s
+    fi
+    ;;
+
+*-sunos*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SUNOS4)
+    CFLAGS="$CFLAGS -Wall -Wno-format"
+    if test "$USE_MDUPDATE"; then
+        CFLAGS="$CFLAGS -MDupdate \$(DEPENDENCIES)"
+    fi
+    CPU_ARCH=sparc
+    DLL_SUFFIX=so.1.0
+    DSO_LDOPTS=
+    DSO_CFLAGS=-fPIC
+    USE_NSPR_THREADS=1
+    if test "$OS_RELEASE" = "4.1.3_U1"; then
+        _OPTIMIZE_FLAGS=
+        OS_LIBS="$OS_LIBS -lm"
+    fi
+    MDCPUCFG_H=_sunos4.cfg
+    PR_MD_CSRCS=sunos4.c
     ;;
 
 *-solaris*)
@@ -2409,76 +2157,6 @@ tools are selected during the Xcode/Developer Tools installation.])
     CPU_ARCH=x86
     ;;
 
-*-symbian*)
-    AC_ARG_WITH(symbian-sdk,
-    [  --with-symbian-sdk=SYMBIAN_SDK_DIR
-                          The path to the Symbian SDK],
-    SYMBIAN_SDK_DIR=$withval)
-
-    echo -----------------------------------------------------------------------------
-    echo Building with Symbian SDK in: $SYMBIAN_SDK_DIR
-    echo -----------------------------------------------------------------------------
-
-    AC_DEFINE(XP_UNIX)
-    AC_DEFINE(SYMBIAN)
-    AC_DEFINE(__arm__)
-    AC_DEFINE(__SYMBIAN32__)
-    AC_DEFINE(_UNICODE)
-    AC_DEFINE(NDEBUG)
-    AC_DEFINE(__SUPPORT_CPP_EXCEPTIONS__)
-    AC_DEFINE(MOZ_STDERR_TO_STDOUT)
-    AC_DEFINE(HAVE_FCNTL_FILE_LOCKING)
-    AC_DEFINE(HAVE_SOCKLEN_T)
-    USE_PTHREADS=1
-    LIB_SUFFIX=lib
-    DLL_SUFFIX=dll
-    MKSHLIB=
-    DSO_LDOPTS=
-    DSO_CFLAGS=
-    VISIBILITY_FLAGS=
-    MDCPUCFG_H=_symbian.cfg
-    PR_MD_CSRCS=symbian.c
-    NSINSTALL=nsinstall
-    RANLIB='echo no ranlib '
-    CPU_ARCH=ARM
-    OS_ARCH=SYMBIAN
-    OS_EXE_CFLAGS="$OS_EXE_CFLAGS -D__EXE__"
-    CFLAGS="$CFLAGS -MD -nostdinc"
-    SYMBIAN_SYS_INCLUDE="-I$SYMBIAN_SDK_DIR/Epoc32/include/variant -I$SYMBIAN_SDK_DIR/Epoc32/include -I$SYMBIAN_SDK_DIR/Epoc32/include/stdapis"
-    echo -------------------------------------------------------
-    echo SYMBIAN_SYS_INCLUDE is: $SYMBIAN_SYS_INCLUDE
-    echo -------------------------------------------------------
-    case "$OS_TARGET" in
-    WINSCW)
-        CC=mwccsym2.exe
-        CXX=mwccsym2.exe
-        LD=mwldsym2.exe
-        AR=mwldsym2.exe
-        WINSCW_LD_DIR="\$(SYMBIAN_SDK_DIR)/EPOC32/RELEASE/WINSCW/UDEB"
-        CFLAGS="$CFLAGS -O0 -inline off -wchar_t off -align 4 -warnings on -w nohidevirtual,nounusedexpr -msgstyle gcc -enum int -str pool -exc ms -trigraphs on -nostderr -gccdep -cwd source -i- -I\$(VPATH)"
-        SYMBIAN_SYS_INCLUDE="$SYMBIAN_SYS_INCLUDE -include Symbian_OS_v9.2.hrh"
-        AR_FLAGS="-library -msgstyle gcc -stdlib -subsystem windows -noimplib -o \$@"
-        AC_DEFINE(_DEBUG)
-        AC_DEFINE(__CW32__)
-        AC_DEFINE(__WINS__)
-        AC_DEFINE(__WINSCW__)
-        DEFINES="$DEFINES -U_WIN32"
-	    ;;
-    GCCE)
-        CFLAGS="$CFLAGS -Wall -Wno-unknown-pragmas -fexceptions -march=armv5t -mapcs -pipe -x c -msoft-float"
-        CXXFLAGS="$CXXFLAGS $CFLAGS -Wno-ctor-dtor-privacy"
-        SYMBIAN_SYS_INCLUDE="$SYMBIAN_SYS_INCLUDE -include $SYMBIAN_SDK_DIR/EPOC32/INCLUDE/GCCE/GCCE.h"
-        AC_DEFINE(__GCCE__)
-        AC_DEFINE(__EABI__)
-        DEFINES="$DEFINES -D__PRODUCT_INCLUDE__=$SYMBIAN_SDK_DIR/Epoc32/include/variant/Symbian_OS_v9.2.hrh"
-	    ;;
-    *)
-	    AC_MSG_ERROR([Missing OS_TARGET for ${target}. Set --enable-symbian-target to with 'WINSCW' or 'GCCE'.])
-   	;;
-    esac
-    CFLAGS="$CFLAGS ${SYMBIAN_SYS_INCLUDE}"
-    ;;
-
 *-os2*)
     AC_DEFINE(XP_OS2)
     AC_DEFINE(XP_PC)
@@ -2500,16 +2178,18 @@ tools are selected during the Xcode/Developer Tools installation.])
     CXXFLAGS="$CFLAGS -Wall -Zomf"
     MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
     DSO_CFLAGS=
-    DSO_LDOPTS='-Zomf -Zdll'
+    DSO_LDOPTS='-Zomf -Zdll -Zmap'
     LDFLAGS='-Zmap'
     _OPTIMIZE_FLAGS="-O2 -s"
     _DEBUG_FLAGS="-g -fno-inline"
     if test -n "$MOZ_OPTIMIZE"; then
       DSO_LDOPTS="$DSO_LDOPTS -Zlinker /EXEPACK:2 -Zlinker /PACKCODE -Zlinker /PACKDATA"
     fi
+    OS_LIBS="-lsocket"
     IMPLIB='emximp -o'
     FILTER='emxexp -o'
     if test -n "$MOZ_OS2_HIGH_MEMORY"; then
+      DSO_LDOPTS="$DSO_LDOPTS -Zhigh-mem"
       LDFLAGS="$LDFLAGS -Zhigh-mem"
       AC_DEFINE(MOZ_OS2_HIGH_MEMORY)
     fi
@@ -2556,15 +2236,14 @@ dnl AC_CHECK_LIB(vms_jackets, main)
 dnl We don't want anything to link with libdl even if it's present on OS X, 
 dnl since it's not used and not part of the default installation.
 dnl The same goes for BeOS.
-dnl OS/2 has dlfcn in libc.
 
 case $target in
-*-darwin*|*-beos*|*-os2*)
+*-darwin*|*-beos*)
     ;;
 *)
     AC_CHECK_LIB(dl, dlopen,
-        [AC_CHECK_HEADER(dlfcn.h,
-            OS_LIBS="-ldl $OS_LIBS")])
+        AC_CHECK_HEADER(dlfcn.h,
+            OS_LIBS="-ldl $OS_LIBS"))
     ;;
 esac
 
@@ -2596,10 +2275,7 @@ dnl ========================================================
 dnl Checks for library functions.
 dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
-_SAVE_LIBS="$LIBS"
-LIBS="$LIBS $OS_LIBS"
-AC_CHECK_FUNCS(dladdr gettid lchown setpriority strerror syscall)
-LIBS="$_SAVE_LIBS"
+AC_CHECK_FUNCS(lchown strerror)
 
 dnl AC_FUNC_MEMCMP
 dnl AC_FUNC_MMAP
@@ -2613,35 +2289,6 @@ dnl AC_CHECK_FUNCS(ftime getcwd gethostname gettimeofday getwd mkdir mktime pute
 dnl ========================================================
 dnl Check options
 dnl ========================================================
-
-dnl ======================================================
-dnl = Enable compiling with ccache
-dnl ======================================================
-AC_ARG_WITH(ccache,
-[  --with-ccache[=path/to/ccache]
-                          Enable compiling with ccache],
-    CCACHE=$withval, CCACHE="no")
-
-if test "$CCACHE" != "no"; then
-    if test -n "$CCACHE"; then
-        if test "$CCACHE" = "yes"; then
-            CCACHE=
-        else
-            if test ! -e "$CCACHE"; then
-                AC_MSG_ERROR([$CCACHE not found])
-            fi
-        fi
-    fi
-    AC_PATH_PROGS(CCACHE, $CCACHE ccache)
-    if test -z "$CCACHE" -o "$CCACHE" = ":"; then
-        AC_MSG_ERROR([ccache not found])
-    elif test -x "$CCACHE"; then
-        CC="$CCACHE $CC"
-        CXX="$CCACHE $CXX"
-    else
-        AC_MSG_ERROR([$CCACHE is not executable])
-    fi
-fi
 
 dnl ========================================================
 dnl =
@@ -2724,9 +2371,6 @@ case "$target_os" in
 darwin*)
     _HAVE_PTHREADS=1
     ;;
-wince*)
-    _HAVE_PTHREADS=
-    ;;
 *)
     MOZ_CHECK_PTHREADS(pthreads,
         _HAVE_PTHREADS=1 _PTHREAD_LDFLAGS="-lpthreads",
@@ -2805,6 +2449,14 @@ AC_ARG_ENABLE(ipv6,
       else
 	    USE_IPV6=
       fi])
+
+
+AC_ARG_ENABLE(boehm,
+    [  --enable-boehm          Enable the Boehm Garbage Collector],
+    [ if test "$enableval" = "yes"; then
+        AC_DEFINE(GC_LEAK_DETECTOR)
+        GC_LEAK_DETECTOR=1
+    fi])
 
 if test -n "$USE_PTHREADS"; then
    dnl See if -pthread is supported.
@@ -2971,8 +2623,8 @@ case "$target" in
         AC_DEFINE(_PR_LOCAL_THREADS_ONLY)
     fi
     ;;
-*-mingw*|*-cygwin*|*-msvc*|*-mks*|*-wince*|*-winmo*|*-os2*|*-beos*)
-    dnl win32, wince, os2 & beos cannot use pthreads
+*-mingw*|*-cygwin*|*-msvc*|*-mks*|*-os2*|*-beos*)
+    dnl win32, os2 & beos cannot use pthreads
     USE_PTHREADS=
     _PTHREAD_LDFLAGS=
     USE_USER_PTHREADS=
@@ -3039,7 +2691,7 @@ if test -n "$MOZ_OPTIMIZE"; then
     CXXFLAGS="$CXXFLAGS $_OPTIMIZE_FLAGS"
 fi
 
-if test -n "$MOZ_DEBUG_SYMBOLS"; then
+if test -n "$MOZ_DEBUG"; then
     CFLAGS="$CFLAGS $_DEBUG_FLAGS"
     CXXFLAGS="$CXXFLAGS $_DEBUG_FLAGS"
 fi
@@ -3068,33 +2720,6 @@ cygwin*|msvc*|mks*)
 esac
 
 dnl ========================================================
-dnl = Use malloc wrapper lib
-dnl ========================================================
-AC_ARG_ENABLE(wrap-malloc,
-[  --enable-wrap-malloc    Wrap malloc calls (gnu linker only)],
-[     if test "$enableval" = "yes"; then
-	    _WRAP_MALLOC=1
-      fi ])
-
-if test -n "$_WRAP_MALLOC"; then
-    if test -n "$GNU_CC"; then
-        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=malloc,--wrap=calloc,--wrap=valloc,--wrap=free,--wrap=realloc,--wrap=memalign"
-        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=__builtin_new,--wrap=__builtin_vec_new,--wrap=__builtin_delete,--wrap=__builtin_vec_delete"
-        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=strdup,--wrap=strndup"
-        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=posix_memalign,--wrap=malloc_usable_size"
-    else
-        AC_MSG_ERROR([--enable-wrap-malloc is not supported for non-GNU toolchains])
-    fi
-fi
-
-dnl ========================================================
-dnl = Location of malloc wrapper lib
-dnl ========================================================
-AC_ARG_WITH(wrap-malloc,
-[  --with-wrap-malloc=SHAREDLIB  Location of malloc wrapper library],
-    WRAP_LDFLAGS="${WRAP_LDFLAGS} $withval")
-
-dnl ========================================================
 dnl Substitution of found variables.
 dnl ========================================================
 AC_SUBST(SHELL_OVERRIDE)
@@ -3115,14 +2740,13 @@ AC_SUBST(MSC_VER)
 AC_SUBST(CROSS_COMPILE)
 
 AC_SUBST(MOZ_OPTIMIZE)
-AC_SUBST(MOZ_DEBUG)
-AC_SUBST(MOZ_DEBUG_SYMBOLS)
 
 AC_SUBST(USE_CPLUS)
 AC_SUBST(USE_IPV6)
 AC_SUBST(USE_N32)
 AC_SUBST(USE_64)
 AC_SUBST(OBJECT_MODE)
+AC_SUBST(GC_LEAK_DETECTOR)
 AC_SUBST(ENABLE_STRIP)
 
 AC_SUBST(USE_PTHREADS)
@@ -3147,7 +2771,6 @@ AC_SUBST(OBJ_SUFFIX)
 AC_SUBST(LIB_SUFFIX)
 AC_SUBST(DLL_SUFFIX)
 AC_SUBST(ASM_SUFFIX)
-AC_SUBST(WRAP_LDFLAGS)
 AC_SUBST(MKSHLIB)
 AC_SUBST(DSO_CFLAGS)
 AC_SUBST(DSO_LDOPTS)
@@ -3171,11 +2794,6 @@ AC_SUBST(STRIP)
 AC_SUBST(FILTER)
 AC_SUBST(IMPLIB)
 
-AC_SUBST(PROFILE_GEN_CFLAGS)
-AC_SUBST(PROFILE_GEN_LDFLAGS)
-AC_SUBST(PROFILE_USE_CFLAGS)
-AC_SUBST(PROFILE_USE_LDFLAGS)
-
 AC_SUBST(OS_LIBS)
 AC_SUBST(RESOLVE_LINK_SYMBOLS)
 AC_SUBST(AIX_LINK_OPTS)
@@ -3197,7 +2815,6 @@ AC_SUBST(CYGWIN_WRAPPER)
 AC_SUBST(VISIBILITY_FLAGS)
 AC_SUBST(WRAP_SYSTEM_INCLUDES)
 AC_SUBST(MACOS_SDK_DIR)
-AC_SUBST(SYMBIAN_SDK_DIR)
 AC_SUBST(NEXT_ROOT)
 AC_SUBST(MT)
 
@@ -3205,69 +2822,55 @@ dnl ========================================================
 dnl Generate output files.
 dnl ========================================================
 MAKEFILES="
-    Makefile
-    config/Makefile
-    config/autoconf.mk
-    config/nsprincl.mk
-    config/nsprincl.sh
-    config/nspr-config
-    config/nspr.pc
-    lib/Makefile
-    lib/ds/Makefile
-    lib/libc/Makefile
-    lib/libc/include/Makefile
-    lib/libc/src/Makefile
-    lib/tests/Makefile
-    pkg/Makefile
-    pr/Makefile
-    pr/include/Makefile
-    pr/include/md/Makefile
-    pr/include/obsolete/Makefile
-    pr/include/private/Makefile
-    pr/src/Makefile
-    pr/src/io/Makefile
-    pr/src/linking/Makefile
-    pr/src/malloc/Makefile
-    pr/src/md/Makefile
-    pr/src/md/${PR_MD_ARCH_DIR}/Makefile
-    pr/src/memory/Makefile
-    pr/src/misc/Makefile
-    pr/src/threads/Makefile
-    pr/tests/Makefile
-    pr/tests/dll/Makefile
+Makefile 
+config/Makefile
+config/autoconf.mk
+config/nsprincl.mk
+config/nsprincl.sh
+config/nspr-config
+lib/Makefile 
+lib/ds/Makefile 
+lib/libc/Makefile 
+lib/libc/include/Makefile 
+lib/libc/src/Makefile 
+lib/tests/Makefile
+pkg/Makefile
+pkg/linux/Makefile
+pkg/solaris/Makefile
+pkg/solaris/SUNWpr/Makefile
+pkg/solaris/SUNWprd/Makefile
+pr/Makefile 
+pr/include/Makefile 
+pr/include/md/Makefile 
+pr/include/obsolete/Makefile 
+pr/include/private/Makefile 
+pr/src/Makefile 
+pr/src/io/Makefile 
+pr/src/linking/Makefile 
+pr/src/malloc/Makefile 
+pr/src/md/Makefile 
+pr/src/md/${PR_MD_ARCH_DIR}/Makefile 
+pr/src/memory/Makefile 
+pr/src/misc/Makefile 
+pr/src/threads/Makefile 
+pr/tests/Makefile 
+pr/tests/dll/Makefile 
 "
 
-if test "$OS_TARGET" = "Linux"; then
-    MAKEFILES="$MAKEFILES
-        pkg/linux/Makefile
-    "
-elif test "$OS_TARGET" = "SunOS"; then
-    MAKEFILES="$MAKEFILES
-        pkg/solaris/Makefile
-        pkg/solaris/SUNWpr/Makefile
-        pkg/solaris/SUNWprd/Makefile
-    "
-fi
+dnl lib/tests/Makefile
+dnl pr/tests/w16gui/Makefile
+dnl tools/Makefile
 
 if test -z "$USE_PTHREADS" && test -z "$USE_BTHREADS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/threads/combined/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/threads/combined/Makefile"
 elif test -n "$USE_PTHREADS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/pthreads/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/pthreads/Makefile"
 elif test -n "$USE_BTHREADS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/bthreads/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/bthreads/Makefile"
 fi
 
 if test -n "$USE_CPLUS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/cplus/Makefile
-        pr/src/cplus/tests/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/cplus/Makefile pr/src/cplus/tests/Makefile"
 fi
 
 echo $MAKEFILES > unallmakefiles

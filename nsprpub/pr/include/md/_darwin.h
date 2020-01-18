@@ -1,19 +1,49 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nspr_darwin_defs_h___
 #define nspr_darwin_defs_h___
 
 #include "prthread.h"
 
-#include <libkern/OSAtomic.h>
 #include <sys/syscall.h>
 
-#ifdef __APPLE__
+#ifdef XP_MACOSX
 #include <AvailabilityMacros.h>
-#include <TargetConditionals.h>
 #endif
 
 #define PR_LINKER_ARCH	"darwin"
@@ -24,10 +54,6 @@
 #define _PR_SI_ARCHITECTURE "x86-64"
 #elif defined(__ppc__)
 #define _PR_SI_ARCHITECTURE "ppc"
-#elif defined(__arm__)
-#define _PR_SI_ARCHITECTURE "arm"
-#else
-#error "Unknown CPU architecture"
 #endif
 #define PR_DLL_SUFFIX		".dylib"
 
@@ -38,7 +64,7 @@
 
 #undef  HAVE_STACK_GROWING_UP
 #define HAVE_DLL
-#if defined(__x86_64__) || TARGET_OS_IPHONE
+#ifdef __x86_64__
 #define USE_DLFCN
 #else
 #define USE_MACH_DYLD
@@ -62,7 +88,7 @@
  * if you pass an IPv4-mapped IPv6 address to it.
  */
 #define _PR_GHBA_DISALLOW_V4MAPPED
-#ifdef __APPLE__
+#ifdef XP_MACOSX
 #if !defined(MAC_OS_X_VERSION_10_3) || \
     MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_3
 /*
@@ -76,7 +102,7 @@
 /* Mac OS X 10.2 has inet_ntop and inet_pton. */
 #define _PR_HAVE_INET_NTOP
 #endif /* DT >= 10.2 */
-#endif /* __APPLE__ */
+#endif /* XP_MACOSX */
 #define _PR_IPV6_V6ONLY_PROBE
 /* The IPV6_V6ONLY socket option is not defined on Mac OS X 10.1. */
 #ifndef IPV6_V6ONLY
@@ -121,22 +147,6 @@ extern PRInt32 _PR_Darwin_x86_64_AtomicSet(PRInt32 *val, PRInt32 newval);
 extern PRInt32 _PR_Darwin_x86_64_AtomicAdd(PRInt32 *ptr, PRInt32 val);
 #define _MD_ATOMIC_ADD(ptr, val)    _PR_Darwin_x86_64_AtomicAdd(ptr, val)
 #endif /* __x86_64__ */
-
-#ifdef __arm__
-#define _PR_HAVE_ATOMIC_OPS
-#define _MD_INIT_ATOMIC()
-#define _MD_ATOMIC_INCREMENT(val)   OSAtomicIncrement32(val)
-#define _MD_ATOMIC_DECREMENT(val)   OSAtomicDecrement32(val)
-static inline PRInt32 _MD_ATOMIC_SET(PRInt32 *val, PRInt32 newval)
-{
-    PRInt32 oldval;
-    do {
-        oldval = *val;
-    } while (!OSAtomicCompareAndSwap32(oldval, newval, val));
-    return oldval;
-}
-#define _MD_ATOMIC_ADD(ptr, val)    OSAtomicAdd32(val, ptr)
-#endif /* __arm__ */
 
 #define USE_SETJMP
 
@@ -280,14 +290,12 @@ extern void _MD_YIELD(void);
 
 #define _MD_EARLY_INIT          _MD_EarlyInit
 #define _MD_FINAL_INIT			_PR_UnixInit
-#define _MD_INTERVAL_INIT       _PR_Mach_IntervalInit
-#define _MD_GET_INTERVAL        _PR_Mach_GetInterval
-#define _MD_INTERVAL_PER_SEC    _PR_Mach_TicksPerSecond
+#define _MD_GET_INTERVAL        _PR_UNIX_GetInterval
+#define _MD_INTERVAL_PER_SEC    _PR_UNIX_TicksPerSecond
 
 extern void             _MD_EarlyInit(void);
-extern void             _PR_Mach_IntervalInit(void);
-extern PRIntervalTime   _PR_Mach_GetInterval(void);
-extern PRIntervalTime   _PR_Mach_TicksPerSecond(void);
+extern PRIntervalTime   _PR_UNIX_GetInterval(void);
+extern PRIntervalTime   _PR_UNIX_TicksPerSecond(void);
 
 /*
  * We wrapped the select() call.  _MD_SELECT refers to the built-in,

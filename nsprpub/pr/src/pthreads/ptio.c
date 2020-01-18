@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
 ** File:   ptio.c
@@ -179,26 +211,12 @@ static PRBool _pr_ipv6_v6only_on_by_default;
     || defined(HPUX10_30) || defined(HPUX11) \
     || defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
     || defined(FREEBSD) || defined(NETBSD) || defined(OPENBSD) \
-    || defined(BSDI) || defined(NTO) || defined(DARWIN) \
+    || defined(BSDI) || defined(VMS) || defined(NTO) || defined(DARWIN) \
     || defined(UNIXWARE) || defined(RISCOS) || defined(SYMBIAN)
 #define _PRSelectFdSetArg_t fd_set *
 #else
 #error "Cannot determine architecture"
 #endif
-
-#if defined(SOLARIS)            
-#ifndef PROTO_SDP
-/* on solaris, SDP is a new type of protocol */
-#define PROTO_SDP   257
-#endif 
-#define _PR_HAVE_SDP
-#elif defined(LINUX)
-#ifndef AF_INET_SDP
-/* on linux, SDP is a new type of address family */
-#define AF_INET_SDP 27
-#endif
-#define _PR_HAVE_SDP
-#endif /* LINUX */
 
 static PRFileDesc *pt_SetMethods(
     PRIntn osfd, PRDescType type, PRBool isAcceptedSocket, PRBool imported);
@@ -277,7 +295,8 @@ static PRBool IsValidNetAddrLen(const PRNetAddr *addr, PRInt32 addr_len)
 #if defined(HAVE_SOCKLEN_T) \
     || (defined(__GLIBC__) && __GLIBC__ >= 2)
 typedef socklen_t pt_SockLen;
-#elif (defined(AIX) && !defined(AIX4_1)) 
+#elif (defined(AIX) && !defined(AIX4_1)) \
+    || defined(VMS)
 typedef PRSize pt_SockLen;
 #else
 typedef PRIntn pt_SockLen;
@@ -1150,7 +1169,7 @@ void _PR_InitIO(void)
         osfd = socket(AF_INET6, SOCK_STREAM, 0);
         if (osfd != -1) {
             int on;
-            socklen_t optlen = sizeof(on);
+            int optlen = sizeof(on);
             if (getsockopt(osfd, IPPROTO_IPV6, IPV6_V6ONLY,
                     &on, &optlen) == 0) {
                 _pr_ipv6_v6only_on_by_default = on;
@@ -1603,8 +1622,7 @@ static PRStatus pt_ConnectContinue(
         PR_SetError(PR_BAD_DESCRIPTOR_ERROR, 0);
         return PR_FAILURE;
     }
-    if ((out_flags & (PR_POLL_WRITE | PR_POLL_EXCEPT | PR_POLL_ERR
-        | PR_POLL_HUP)) == 0)
+    if ((out_flags & (PR_POLL_WRITE | PR_POLL_EXCEPT | PR_POLL_ERR)) == 0)
     {
         PR_ASSERT(out_flags == 0);
         PR_SetError(PR_IN_PROGRESS_ERROR, 0);
@@ -2079,21 +2097,21 @@ static PRInt32 pt_RecvFrom(PRFileDesc *fd, void *buf, PRInt32 amount,
         bytes = pt_Continue(&op);
         syserrno = op.syserrno;
     }
+#ifdef _PR_HAVE_SOCKADDR_LEN
     if (bytes >= 0)
     {
-#ifdef _PR_HAVE_SOCKADDR_LEN
         /* ignore the sa_len field of struct sockaddr */
         if (addr)
         {
             addr->raw.family = ((struct sockaddr*)addr)->sa_family;
         }
+    }
 #endif /* _PR_HAVE_SOCKADDR_LEN */
 #ifdef _PR_INET6
-        if (addr && (AF_INET6 == addr->raw.family))
-            addr->raw.family = PR_AF_INET6;
+	if (addr && (AF_INET6 == addr->raw.family))
+        addr->raw.family = PR_AF_INET6;
 #endif
-    }
-    else
+    if (bytes < 0)
         pt_MapError(_PR_MD_MAP_RECVFROM_ERROR, syserrno);
     return bytes;
 }  /* pt_RecvFrom */
@@ -3252,7 +3270,7 @@ static PRIOMethods _pr_socketpollfd_methods = {
 #if defined(HPUX) || defined(OSF1) || defined(SOLARIS) || defined (IRIX) \
     || defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
     || defined(AIX) || defined(FREEBSD) || defined(NETBSD) \
-    || defined(OPENBSD) || defined(BSDI) || defined(NTO) \
+    || defined(OPENBSD) || defined(BSDI) || defined(VMS) || defined(NTO) \
     || defined(DARWIN) || defined(UNIXWARE) || defined(RISCOS) \
     || defined(SYMBIAN)
 #define _PR_FCNTL_FLAGS O_NONBLOCK
@@ -3435,9 +3453,7 @@ PR_IMPLEMENT(PRFileDesc*) PR_Socket(PRInt32 domain, PRInt32 type, PRInt32 proto)
     PRIntn osfd;
     PRDescType ftype;
     PRFileDesc *fd = NULL;
-#if defined(_PR_INET6_PROBE) || !defined(_PR_INET6)
-    PRInt32 tmp_domain = domain;
-#endif
+	PRInt32 tmp_domain = domain;
 
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
@@ -3445,12 +3461,6 @@ PR_IMPLEMENT(PRFileDesc*) PR_Socket(PRInt32 domain, PRInt32 type, PRInt32 proto)
 
     if (PF_INET != domain
         && PR_AF_INET6 != domain
-#if defined(_PR_HAVE_SDP)
-        && PR_AF_INET_SDP != domain
-#if defined(SOLARIS)
-        && PR_AF_INET6_SDP != domain
-#endif /* SOLARIS */
-#endif /* _PR_HAVE_SDP */
         && PF_UNIX != domain)
     {
         PR_SetError(PR_ADDRESS_NOT_SUPPORTED_ERROR, 0);
@@ -3463,20 +3473,6 @@ PR_IMPLEMENT(PRFileDesc*) PR_Socket(PRInt32 domain, PRInt32 type, PRInt32 proto)
 		(void)PR_SetError(PR_ADDRESS_NOT_SUPPORTED_ERROR, 0);
 		return fd;
 	}
-#if defined(_PR_HAVE_SDP)
-#if defined(LINUX)
-    if (PR_AF_INET_SDP == domain)
-        domain = AF_INET_SDP;
-#elif defined(SOLARIS)
-    if (PR_AF_INET_SDP == domain) {
-        domain = AF_INET;
-        proto = PROTO_SDP;
-    } else if(PR_AF_INET6_SDP == domain) {
-        domain = AF_INET6;
-        proto = PROTO_SDP;
-    }
-#endif /* SOLARIS */
-#endif /* _PR_HAVE_SDP */
 #if defined(_PR_INET6_PROBE)
 	if (PR_AF_INET6 == domain)
 		domain = _pr_ipv6_is_present() ? AF_INET6 : AF_INET;
@@ -4586,7 +4582,7 @@ PR_IMPLEMENT(PRFileDesc*) PR_ImportUDPSocket(PRInt32 osfd)
 
     if (!_pr_initialized) _PR_ImplicitInitialization();
     fd = pt_SetMethods(osfd, PR_DESC_SOCKET_UDP, PR_FALSE, PR_TRUE);
-    if (NULL == fd) close(osfd);
+    if (NULL != fd) close(osfd);
     return fd;
 }  /* PR_ImportUDPSocket */
 
@@ -4708,7 +4704,7 @@ PR_IMPLEMENT(PRStatus) PR_UnlockFile(PRFileDesc *fd)
 
 PR_IMPLEMENT(PRInt32) PR_GetSysfdTableMax(void)
 {
-#if defined(AIX) || defined(SYMBIAN)
+#if defined(AIX) || defined(VMS) || defined(SYMBIAN)
     return sysconf(_SC_OPEN_MAX);
 #else
     struct rlimit rlim;
@@ -4722,7 +4718,7 @@ PR_IMPLEMENT(PRInt32) PR_GetSysfdTableMax(void)
 
 PR_IMPLEMENT(PRInt32) PR_SetSysfdTableSize(PRIntn table_size)
 {
-#if defined(AIX) || defined(SYMBIAN)
+#if defined(AIX) || defined(VMS) || defined(SYMBIAN)
     return -1;
 #else
     struct rlimit rlim;
@@ -4850,7 +4846,7 @@ PR_IMPLEMENT(PRInt32) PR_FD_NISSET(PRInt32 fd, PR_fd_set *set)
 
 #include <sys/types.h>
 #include <sys/time.h>
-#if !defined(HPUX) \
+#if !defined(SUNOS4) && !defined(HPUX) \
     && !defined(LINUX) && !defined(__GNU__) && !defined(__GLIBC__)
 #include <sys/select.h>
 #endif

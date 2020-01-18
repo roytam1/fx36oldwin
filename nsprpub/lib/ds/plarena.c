@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * 
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ * 
+ * The Initial Developer of the Original Code is Netscape
+ * Communications Corporation.  Portions created by Netscape are 
+ * Copyright (C) 1998-2000 Netscape Communications Corporation.  All
+ * Rights Reserved.
+ * 
+ * Contributor(s):
+ * 
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
+ */
 
 /*
  * Lifetime-based fast allocation, inspired by much prior art, including
@@ -75,6 +108,10 @@ static void UnlockArena( void )
 PR_IMPLEMENT(void) PL_InitArenaPool(
     PLArenaPool *pool, const char *name, PRUint32 size, PRUint32 align)
 {
+#if defined(XP_MAC)
+#pragma unused (name)
+#endif
+
     /*
      * Look-up table of PR_BITMASK(PR_CeilingLog2(align)) values for
      * align = 1 to 32.
@@ -96,15 +133,7 @@ PR_IMPLEMENT(void) PL_InitArenaPool(
     pool->first.base = pool->first.avail = pool->first.limit =
         (PRUword)PL_ARENA_ALIGN(pool, &pool->first + 1);
     pool->current = &pool->first;
-    /*
-     * Compute the net size so that each arena's gross size is |size|.
-     * sizeof(PLArena) + pool->mask is the header and alignment slop
-     * that PL_ArenaAllocate adds to the net size.
-     */
-    if (size > sizeof(PLArena) + pool->mask)
-        pool->arenasize = size - (sizeof(PLArena) + pool->mask);
-    else
-        pool->arenasize = size;
+    pool->arenasize = size;                                  
 #ifdef PL_ARENAMETER
     memset(&pool->stats, 0, sizeof pool->stats);
     pool->stats.name = strdup(name);
@@ -153,7 +182,7 @@ PR_IMPLEMENT(void *) PL_ArenaAllocate(PLArenaPool *pool, PRUint32 nb)
     {
         a = pool->current;
         do {
-            if ( nb <= a->limit - a->avail )  {
+            if ( a->avail +nb <= a->limit )  {
                 pool->current = a;
                 rp = (char *)a->avail;
                 a->avail += nb;
@@ -171,7 +200,7 @@ PR_IMPLEMENT(void *) PL_ArenaAllocate(PLArenaPool *pool, PRUint32 nb)
             return(0);
 
         for ( a = arena_freelist, p = NULL; a != NULL ; p = a, a = a->next ) {
-            if ( nb <= a->limit - a->base )  {
+            if ( a->base +nb <= a->limit )  {
                 if ( p == NULL )
                     arena_freelist = a->next;
                 else
@@ -196,16 +225,11 @@ PR_IMPLEMENT(void *) PL_ArenaAllocate(PLArenaPool *pool, PRUint32 nb)
     /* attempt to allocate from the heap */ 
     {  
         PRUint32 sz = PR_MAX(pool->arenasize, nb);
-        if (PR_UINT32_MAX - sz < sizeof *a + pool->mask) {
-            a = NULL;
-        } else {
-            sz += sizeof *a + pool->mask;  /* header and alignment slop */
-            a = (PLArena*)PR_MALLOC(sz);
-        }
+        sz += sizeof *a + pool->mask;  /* header and alignment slop */
+        a = (PLArena*)PR_MALLOC(sz);
         if ( NULL != a )  {
             a->limit = (PRUword)a + sz;
             a->base = a->avail = (PRUword)PL_ARENA_ALIGN(pool, a + 1);
-            PL_MAKE_MEM_NOACCESS((void*)a->avail, a->limit - a->avail);
             rp = (char *)a->avail;
             a->avail += nb;
             /* the newly allocated arena is linked after pool->current 
@@ -242,8 +266,7 @@ static void ClearArenaList(PLArena *a, PRInt32 pattern)
     for (; a; a = a->next) {
         PR_ASSERT(a->base <= a->avail && a->avail <= a->limit);
         a->avail = a->base;
-        PL_CLEAR_UNUSED_PATTERN(a, pattern);
-        PL_MAKE_MEM_NOACCESS((void*)a->avail, a->limit - a->avail);
+	PL_CLEAR_UNUSED_PATTERN(a, pattern);
     }
 }
 
@@ -279,8 +302,6 @@ static void FreeArenaList(PLArenaPool *pool, PLArena *head, PRBool reallyFree)
     } else {
         /* Insert the whole arena chain at the front of the freelist. */
         do {
-            PL_MAKE_MEM_NOACCESS((void*)(*ap)->base,
-                                 (*ap)->limit - (*ap)->base);
             ap = &(*ap)->next;
         } while (*ap);
         LockArena();
@@ -297,8 +318,8 @@ PR_IMPLEMENT(void) PL_ArenaRelease(PLArenaPool *pool, char *mark)
 {
     PLArena *a;
 
-    for (a = &pool->first; a; a = a->next) {
-        if (PR_UPTRDIFF(mark, a->base) <= PR_UPTRDIFF(a->avail, a->base)) {
+    for (a = pool->first.next; a; a = a->next) {
+        if (PR_UPTRDIFF(mark, a->base) < PR_UPTRDIFF(a->avail, a->base)) {
             a->avail = (PRUword)PL_ARENA_ALIGN(pool, mark);
             FreeArenaList(pool, a, PR_FALSE);
             return;
@@ -334,6 +355,17 @@ PR_IMPLEMENT(void) PL_FinishArenaPool(PLArenaPool *pool)
 
 PR_IMPLEMENT(void) PL_CompactArenaPool(PLArenaPool *ap)
 {
+#if XP_MAC
+#pragma unused (ap)
+#if 0
+    PRArena *curr = &(ap->first);
+    while (curr) {
+        reallocSmaller(curr, curr->avail - (uprword_t)curr);
+        curr->limit = curr->avail;
+        curr = curr->next;
+    }
+#endif
+#endif
 }
 
 PR_IMPLEMENT(void) PL_ArenaFinish(void)
@@ -351,22 +383,6 @@ PR_IMPLEMENT(void) PL_ArenaFinish(void)
         arenaLock = NULL;
     }
     once = pristineCallOnce;
-}
-
-PR_IMPLEMENT(size_t) PL_SizeOfArenaPoolExcludingPool(
-    const PLArenaPool *pool, PLMallocSizeFn mallocSizeOf)
-{
-    /*
-     * The first PLArena is within |pool|, so don't measure it.  Subsequent
-     * PLArenas are separate and must be measured.
-     */
-    size_t size = 0;
-    const PLArena *arena = pool->first.next;
-    while (arena) {
-        size += mallocSizeOf(arena);
-        arena = arena->next;
-    }
-    return size;
 }
 
 #ifdef PL_ARENAMETER

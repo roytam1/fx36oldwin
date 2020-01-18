@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 #include "prsystem.h"
@@ -43,12 +75,6 @@
 #if defined(XP_UNIX)
 #include <unistd.h>
 #include <sys/utsname.h>
-#endif
-
-#if defined(LINUX)
-#include <string.h>
-#include <ctype.h>
-#define MAX_LINE 512
 #endif
 
 #if defined(AIX)
@@ -200,6 +226,12 @@ PR_IMPLEMENT(PRInt32) PR_GetNumberOfProcessors( void )
 
     GetSystemInfo( &info );
     numCpus = info.dwNumberOfProcessors;
+#elif defined(XP_MAC)
+/* Hard-code the number of processors to 1 on the Mac
+** MacOS/9 will always be 1. The MPProcessors() call is for
+** MacOS/X, when issued. Leave it commented out for now. */
+/*  numCpus = MPProcessors(); */
+    numCpus = 1;
 #elif defined(BEOS)
     system_info sysInfo;
 
@@ -229,46 +261,43 @@ PR_IMPLEMENT(PRInt32) PR_GetNumberOfProcessors( void )
     numCpus = sysconf( _SC_NPROC_ONLN );
 #elif defined(RISCOS) || defined(SYMBIAN)
     numCpus = 1;
-#elif defined(LINUX)
-    /* for the benefit of devices with advanced power-saving, that
-       actually hotplug their cpus in heavy load, try to figure out
-       the real number of CPUs */
-    char buf[MAX_LINE];
-    FILE *fin;
-    const char *cpu_present = "/sys/devices/system/cpu/present";
-    size_t strsize;
-    numCpus = 0;
-    fin = fopen(cpu_present, "r");
-    if (fin != NULL) {
-        if (fgets(buf, MAX_LINE, fin) != NULL) {
-            /* check that the format is what we expect */
-            if (buf[0] == '0') {
-                strsize = strlen(buf);
-                if (strsize == 1) {
-                    /* single core */
-                    numCpus = 1;
-                } else if (strsize >= 3 && strsize <= 5) {
-                    /* should be of the form 0-999 */
-                    /* parse the part after the 0-, note count is 0-based */
-                    if (buf[1] == '-' && isdigit(buf[2])) {
-                        numCpus = 1 + atoi(buf + 2);
-                    }
-                }
-            }
-        }
-        fclose(fin);
-    }
-    /* if that fails, fall back to more standard methods */
-    if (!numCpus) {
-        numCpus = sysconf( _SC_NPROCESSORS_CONF );
-    }
 #elif defined(XP_UNIX)
-    numCpus = sysconf( _SC_NPROCESSORS_CONF );
+    numCpus = sysconf( _SC_NPROCESSORS_ONLN );
 #else
 #error "An implementation is required"
 #endif
     return(numCpus);
 } /* end PR_GetNumberOfProcessors() */
+
+#ifdef DARWIN
+
+/*
+ * Manually define the host_basic_info structure in Mac OS X 10.4 or later
+ * so that we can compile against Mac OS X 10.2 and 10.3 SDKs.
+ */
+
+#pragma pack(4)
+
+struct host_basic_info_new {
+    integer_t max_cpus;
+    integer_t avail_cpus;
+    natural_t memory_size;
+    cpu_type_t cpu_type;
+    cpu_subtype_t cpu_subtype;
+    /*cpu_threadtype_t*/ integer_t cpu_threadtype;
+    integer_t physical_cpu;
+    integer_t physical_cpu_max;
+    integer_t logical_cpu;
+    integer_t logical_cpu_max;
+    uint64_t max_mem;
+};
+
+#pragma pack()
+
+#define HOST_BASIC_INFO_NEW_COUNT ((mach_msg_type_number_t) \
+    (sizeof(struct host_basic_info_new)/sizeof(integer_t)))
+
+#endif /* DARWIN */
 
 /*
 ** PR_GetPhysicalMemorySize()
@@ -289,22 +318,7 @@ PR_IMPLEMENT(PRUint64) PR_GetPhysicalMemorySize(void)
 
     long pageSize = sysconf(_SC_PAGESIZE);
     long pageCount = sysconf(_SC_PHYS_PAGES);
-    if (pageSize >= 0 && pageCount >= 0)
-        bytes = (PRUint64) pageSize * pageCount;
-
-#elif defined(NETBSD) || defined(OPENBSD)
-
-    int mib[2];
-    int rc;
-    uint64_t memSize;
-    size_t len = sizeof(memSize);
-
-    mib[0] = CTL_HW;
-    mib[1] = HW_PHYSMEM64;
-    rc = sysctl(mib, 2, &memSize, &len, NULL, 0);
-    if (-1 != rc)  {
-        bytes = memSize;
-    }
+    bytes = (PRUint64) pageSize * pageCount;
 
 #elif defined(HPUX)
 
@@ -315,15 +329,20 @@ PR_IMPLEMENT(PRUint64) PR_GetPhysicalMemorySize(void)
 
 #elif defined(DARWIN)
 
-    struct host_basic_info hInfo;
-    mach_msg_type_number_t count = HOST_BASIC_INFO_COUNT;
+    struct host_basic_info_new hInfo;
+    mach_msg_type_number_t count = HOST_BASIC_INFO_NEW_COUNT;
 
     int result = host_info(mach_host_self(),
                            HOST_BASIC_INFO,
                            (host_info_t) &hInfo,
                            &count);
-    if (result == KERN_SUCCESS)
-        bytes = hInfo.max_mem;
+    if (result == KERN_SUCCESS) {
+        if (count >= HOST_BASIC_INFO_NEW_COUNT) {
+            bytes = hInfo.max_mem;
+        } else {
+            bytes = hInfo.memory_size;
+        }
+    }
 
 #elif defined(WIN32)
 

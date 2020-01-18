@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Windows 95 IO module
  *
@@ -194,13 +227,13 @@ _PR_MD_OPEN(const char *name, PRIntn osflags, int mode)
             flags = OPEN_EXISTING;
     }
 
-    file = CreateFileA(name,
-                       access,
-                       FILE_SHARE_READ|FILE_SHARE_WRITE,
-                       NULL,
-                       flags,
-                       flag6,
-                       NULL);
+    file = CreateFile(name,
+                      access,
+                      FILE_SHARE_READ|FILE_SHARE_WRITE,
+                      NULL,
+                      flags,
+                      flag6,
+                      NULL);
     if (file == INVALID_HANDLE_VALUE) {
 		_PR_MD_MAP_OPEN_ERROR(GetLastError());
         return -1; 
@@ -252,13 +285,13 @@ _PR_MD_OPEN_FILE(const char *name, PRIntn osflags, int mode)
             flags = OPEN_EXISTING;
     }
 
-    file = CreateFileA(name,
-                       access,
-                       FILE_SHARE_READ|FILE_SHARE_WRITE,
-                       lpSA,
-                       flags,
-                       flag6,
-                       NULL);
+    file = CreateFile(name,
+                      access,
+                      FILE_SHARE_READ|FILE_SHARE_WRITE,
+                      lpSA,
+                      flags,
+                      flag6,
+                      NULL);
     if (lpSA != NULL) {
         _PR_NT_FreeSecurityDescriptorACL(pSD, pACL);
     }
@@ -438,7 +471,7 @@ _MD_CloseFile(PROsfd osfd)
 #define GetFileFromDIR(d)       (d)->d_entry.cFileName
 #define FileIsHidden(d)	((d)->d_entry.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)
 
-static void FlipSlashes(char *cp, size_t len)
+void FlipSlashes(char *cp, size_t len)
 {
     while (len-- > 0) {
         if (cp[0] == '/') {
@@ -456,7 +489,7 @@ static void FlipSlashes(char *cp, size_t len)
 **
 */
 
-PRInt32
+PRStatus
 _PR_MD_CLOSE_DIR(_MDDir *d)
 {
     if ( d ) {
@@ -497,7 +530,7 @@ _PR_MD_OPEN_DIR(_MDDir *d, const char *name)
     strcpy(&filename[len], "\\*.*");
     FlipSlashes( filename, strlen(filename) );
 
-    d->d_hdl = FindFirstFileA( filename, &(d->d_entry) );
+    d->d_hdl = FindFirstFile( filename, &(d->d_entry) );
     if ( d->d_hdl == INVALID_HANDLE_VALUE ) {
 		_PR_MD_MAP_OPENDIR_ERROR(GetLastError());
         return PR_FAILURE;
@@ -520,7 +553,7 @@ _PR_MD_READ_DIR(_MDDir *d, PRIntn flags)
                 d->firstEntry = PR_FALSE;
                 rv = 1;
             } else {
-                rv = FindNextFileA(d->d_hdl, &(d->d_entry));
+                rv = FindNextFile(d->d_hdl, &(d->d_entry));
             }
             if (rv == 0) {
                 break;
@@ -549,7 +582,7 @@ _PR_MD_READ_DIR(_MDDir *d, PRIntn flags)
 PRInt32
 _PR_MD_DELETE(const char *name)
 {
-    if (DeleteFileA(name)) {
+    if (DeleteFile(name)) {
         return 0;
     } else {
 		_PR_MD_MAP_DELETE_ERROR(GetLastError());
@@ -996,7 +1029,7 @@ PRInt32
 _PR_MD_RENAME(const char *from, const char *to)
 {
     /* Does this work with dot-relative pathnames? */
-    if (MoveFileA(from, to)) {
+    if (MoveFile(from, to)) {
         return 0;
     } else {
 		_PR_MD_MAP_RENAME_ERROR(GetLastError());
@@ -1031,7 +1064,7 @@ PRInt32
 _PR_MD_MKDIR(const char *name, PRIntn mode)
 {
     /* XXXMB - how to translate the "mode"??? */
-    if (CreateDirectoryA(name, NULL)) {
+    if (CreateDirectory(name, NULL)) {
         return 0;
     } else {
 		_PR_MD_MAP_MKDIR_ERROR(GetLastError());
@@ -1055,7 +1088,7 @@ _PR_MD_MAKE_DIR(const char *name, PRIntn mode)
         sa.bInheritHandle = FALSE;
         lpSA = &sa;
     }
-    rv = CreateDirectoryA(name, lpSA);
+    rv = CreateDirectory(name, lpSA);
     if (lpSA != NULL) {
         _PR_NT_FreeSecurityDescriptorACL(pSD, pACL);
     }
@@ -1070,7 +1103,7 @@ _PR_MD_MAKE_DIR(const char *name, PRIntn mode)
 PRInt32
 _PR_MD_RMDIR(const char *name)
 {
-    if (RemoveDirectoryA(name)) {
+    if (RemoveDirectory(name)) {
         return 0;
     } else {
 		_PR_MD_MAP_RMDIR_ERROR(GetLastError());
@@ -1182,7 +1215,7 @@ static void InitUnicodeSupport(void)
 #ifdef MOZ_UNICODE
 
 /* ================ UTF16 Interfaces ================================ */
-static void FlipSlashesW(PRUnichar *cp, size_t len)
+void FlipSlashesW(PRUnichar *cp, size_t len)
 {
     while (len-- > 0) {
         if (cp[0] == L'/') {

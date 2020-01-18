@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * prtime.c --
@@ -40,6 +72,9 @@
 #define COUNT_DAYS(Y)  ( ((Y)-1)*365 + COUNT_LEAPS(Y) )
 #define DAYS_BETWEEN_YEARS(A, B)  (COUNT_DAYS(B) - COUNT_DAYS(A))
 
+
+
+
 /*
  * Static variables used by functions in this file
  */
@@ -68,7 +103,7 @@ static const PRInt8 nDays[2][12] = {
  */
 
 static void        ComputeGMT(PRTime time, PRExplodedTime *gmt);
-static int         IsLeapYear(PRInt16 year);
+static int        IsLeapYear(PRInt16 year);
 static void        ApplySecOffset(PRExplodedTime *time, PRInt32 secOffset);
 
 /*
@@ -78,6 +113,7 @@ static void        ApplySecOffset(PRExplodedTime *time, PRInt32 secOffset);
  *
  *     Caveats:
  *     - we ignore leap seconds
+ *     - our leap-year calculation is only correct for years 1901-2099
  *
  *------------------------------------------------------------------------
  */
@@ -131,53 +167,55 @@ ComputeGMT(PRTime time, PRExplodedTime *gmt)
     }
 
     /* Compute the time of day. */
-
+    
     gmt->tm_hour = rem / 3600;
     rem %= 3600;
     gmt->tm_min = rem / 60;
     gmt->tm_sec = rem % 60;
 
+    /* Compute the four-year span containing the specified time */
+
+    tmp = numDays / (4 * 365 + 1);
+    rem = numDays % (4 * 365 + 1);
+
+    if (rem < 0) {
+        tmp--;
+        rem += (4 * 365 + 1);
+    }
+
     /*
-     * Compute the year by finding the 400 year period, then working
-     * down from there.
-     *
-     * Since numDays is originally the number of days since January 1, 1970,
-     * we must change it to be the number of days from January 1, 0001.
+     * Compute the year after 1900 by taking the four-year span and
+     * adjusting for the remainder.  This works because 2000 is a 
+     * leap year, and 1900 and 2100 are out of the range.
+     */
+    
+    tmp = (tmp * 4) + 1970;
+    isLeap = 0;
+
+    /*
+     * 1970 has 365 days
+     * 1971 has 365 days
+     * 1972 has 366 days (leap year)
+     * 1973 has 365 days
      */
 
-    numDays += 719162;       /* 719162 = days from year 1 up to 1970 */
-    tmp = numDays / 146097;  /* 146097 = days in 400 years */
-    rem = numDays % 146097;
-    gmt->tm_year = tmp * 400 + 1;
-
-    /* Compute the 100 year period. */
-
-    tmp = rem / 36524;    /* 36524 = days in 100 years */
-    rem %= 36524;
-    if (tmp == 4) {       /* the 400th year is a leap year */
-        tmp = 3;
-        rem = 36524;
-    }
-    gmt->tm_year += tmp * 100;
-
-    /* Compute the 4 year period. */
-
-    tmp = rem / 1461;     /* 1461 = days in 4 years */
-    rem %= 1461;
-    gmt->tm_year += tmp * 4;
-
-    /* Compute which year in the 4. */
-
-    tmp = rem / 365;
-    rem %= 365;
-    if (tmp == 4) {       /* the 4th year is a leap year */
-        tmp = 3;
-        rem = 365;
+    if (rem >= 365) {                                /* 1971, etc. */
+        tmp++;
+        rem -= 365;
+        if (rem >= 365) {                        /* 1972, etc. */
+            tmp++;
+            rem -= 365;
+            if (rem >= 366) {                        /* 1973, etc. */
+                tmp++;
+                rem -= 366;
+            } else {
+                isLeap = 1;
+            }
+        }
     }
 
-    gmt->tm_year += tmp;
+    gmt->tm_year = tmp;
     gmt->tm_yday = rem;
-    isLeap = IsLeapYear(gmt->tm_year);
 
     /* Compute the month and day of month. */
 
@@ -225,7 +263,11 @@ PR_ExplodeTime(
  *
  *------------------------------------------------------------------------
  */
+#if defined(HAVE_WATCOM_BUG_2)
+PRTime __pascal __export __loadds
+#else
 PR_IMPLEMENT(PRTime)
+#endif
 PR_ImplodeTime(const PRExplodedTime *exploded)
 {
     PRExplodedTime copy;
@@ -468,8 +510,8 @@ PR_NormalizeTime(PRExplodedTime *time, PRTimeParamFn params)
  *     returns the time parameters for the local time zone
  *
  *     The following uses localtime() from the standard C library.
- *     (time.h)  This is our fallback implementation.  Unix, PC, and BeOS
- *     use this version.  A platform may have its own machine-dependent
+ *     (time.h)  This is our fallback implementation.  Unix and PC
+ *     use this version.  Mac has its own machine-dependent
  *     implementation of this function.
  *
  *-------------------------------------------------------------------------
@@ -496,6 +538,10 @@ PR_NormalizeTime(PRExplodedTime *time, PRTimeParamFn params)
 #define MT_safe_localtime localtime_r
 
 #else
+
+#if defined(XP_MAC)
+extern struct tm *Maclocaltime(const time_t * t);
+#endif
 
 #define HAVE_LOCALTIME_MONITOR 1  /* We use 'monitor' to serialize our calls
                                    * to localtime(). */
@@ -526,7 +572,11 @@ static struct tm *MT_safe_localtime(const time_t *clock, struct tm *result)
      * structs returned for timezones west of Greenwich when clock == 0.
      */
     
+#if defined(XP_MAC)
+    tmPtr = Maclocaltime(clock);
+#else
     tmPtr = localtime(clock);
+#endif
 
 #if defined(WIN16) || defined(XP_OS2)
     if ( (PRInt32) *clock < 0 ||
@@ -554,9 +604,6 @@ void _PR_InitTime(void)
 #ifdef HAVE_LOCALTIME_MONITOR
     monitor = PR_NewLock();
 #endif
-#ifdef WINCE
-    _MD_InitTime();
-#endif
 }
 
 void _PR_CleanupTime(void)
@@ -566,9 +613,6 @@ void _PR_CleanupTime(void)
         PR_DestroyLock(monitor);
         monitor = NULL;
     }
-#endif
-#ifdef WINCE
-    _MD_CleanupTime();
 #endif
 }
 
@@ -717,7 +761,7 @@ PR_LocalTimeParameters(const PRExplodedTime *gmt)
     return retVal;
 }
 
-#endif    /* defined(XP_UNIX) || defined(XP_PC) || defined(XP_BEOS) */
+#endif    /* defined(XP_UNIX) !! defined(XP_PC) */
 
 /*
  *------------------------------------------------------------------------
@@ -871,6 +915,10 @@ PR_USPacificTimeParameters(const PRExplodedTime *gmt)
 PR_IMPLEMENT(PRTimeParameters)
 PR_GMTParameters(const PRExplodedTime *gmt)
 {
+#if defined(XP_MAC)
+#pragma unused (gmt)
+#endif
+
     PRTimeParameters retVal = { 0, 0 };
     return retVal;
 }
@@ -1465,9 +1513,8 @@ PR_ParseTimeStringToExplodedTime(
           /* "-" is ignored at the beginning of a token if we have not yet
                  parsed a year (e.g., the second "-" in "30-AUG-1966"), or if
                  the character after the dash is not a digit. */         
-          if (*rest == '-' && ((rest > string &&
-              isalpha((unsigned char)rest[-1]) && year < 0) ||
-              rest[1] < '0' || rest[1] > '9'))
+          if (*rest == '-' && ((rest > string && isalpha(rest[-1]) && year < 0)
+              || rest[1] < '0' || rest[1] > '9'))
                 {
                   rest++;
                   goto SKIP_MORE;
@@ -1695,9 +1742,9 @@ PR_FormatTime(char *buf, int buflen, const char *fmt, const PRExplodedTime *tm)
          * additional fields: tm_zone and tm_gmtoff.
          */
 
-#if (__GLIBC__ >= 2) || defined(XP_BEOS) \
+#if defined(SUNOS4) || (__GLIBC__ >= 2) || defined(XP_BEOS) \
         || defined(NETBSD) || defined(OPENBSD) || defined(FREEBSD) \
-        || defined(DARWIN) || defined(SYMBIAN) || defined(ANDROID)
+        || defined(DARWIN) || defined(SYMBIAN)
         a.tm_zone = NULL;
         a.tm_gmtoff = tm->tm_params.tp_gmt_offset +
                       tm->tm_params.tp_dst_offset;

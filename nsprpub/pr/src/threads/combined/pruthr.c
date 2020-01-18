@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 #include <signal.h>
@@ -16,6 +48,10 @@
 */
 #pragma warning(disable : 4101)
 #endif          
+
+#if defined(XP_MAC)
+#include <LowMem.h>
+#endif
 
 /* _pr_activeLock protects the following global variables */
 PRLock *_pr_activeLock;
@@ -62,10 +98,12 @@ static void _PR_UserRunThread(void);
 void _PR_InitThreads(PRThreadType type, PRThreadPriority priority,
     PRUintn maxPTDs)
 {
+#if defined(XP_MAC)
+#pragma unused (maxPTDs)
+#endif
+
     PRThread *thread;
     PRThreadStack *stack;
-
-    PR_ASSERT(priority == PR_PRIORITY_NORMAL);
 
     _pr_terminationCVLock = PR_NewLock();
     _pr_activeLock = PR_NewLock();
@@ -78,6 +116,8 @@ void _PR_InitThreads(PRThreadType type, PRThreadPriority priority,
 #else
 #if defined(SOLARIS) || defined (UNIXWARE) && defined (USR_SVR4_THREADS)
     stack->stackTop = (char*) &thread;
+#elif defined(XP_MAC)
+    stack->stackTop = (char*) LMGetCurStackBase();
 #else
     stack->stackTop = (char*) ((((long)&type + _pr_pageSize - 1)
                 >> _pr_pageShift) << _pr_pageShift);
@@ -239,7 +279,6 @@ static void _PR_InitializeRecycledThread(PRThread *thread)
     PR_ASSERT(thread->dumpArg == 0 && thread->dump == 0);
     PR_ASSERT(thread->errorString == 0 && thread->errorStringSize == 0);
     PR_ASSERT(thread->errorStringLength == 0);
-    PR_ASSERT(thread->name == 0);
 
     /* Reset data members in thread structure */
     thread->errorCode = thread->osErrorCode = 0;
@@ -884,7 +923,9 @@ void _PR_Schedule(void)
                 /*
                 * skip non-schedulable threads
                 */
+#if !defined(XP_MAC)
                 PR_ASSERT(!(thread->flags & _PR_IDLE_THREAD));
+#endif
                 if ((thread->no_sched) && (me != thread)){
                     thread = NULL;
                     continue;
@@ -964,6 +1005,10 @@ static PRThread *
 _PR_AttachThread(PRThreadType type, PRThreadPriority priority,
     PRThreadStack *stack)
 {
+#if defined(XP_MAC)
+#pragma unused (type)
+#endif
+
     PRThread *thread;
     char *mem;
 
@@ -1002,6 +1047,10 @@ _PR_NativeCreateThread(PRThreadType type,
                      PRUint32 stackSize,
                      PRUint32 flags)
 {
+#if defined(XP_MAC)
+#pragma unused (scope)
+#endif
+
     PRThread *thread;
 
     thread = _PR_AttachThread(type, priority, NULL);
@@ -1136,9 +1185,9 @@ PR_IMPLEMENT(PRThread*) _PR_CreateThread(PRThreadType type,
             if (type == PR_SYSTEM_THREAD)
             {
                 thread->flags |= _PR_SYSTEM;
-                PR_ATOMIC_INCREMENT(&_pr_systemActive);
+                PR_AtomicIncrement(&_pr_systemActive);
             }
-            else PR_ATOMIC_INCREMENT(&_pr_userActive);
+            else PR_AtomicIncrement(&_pr_userActive);
 
             if (state == PR_JOINABLE_THREAD) {
                 if (!thread->term) 
@@ -1235,6 +1284,14 @@ PR_IMPLEMENT(PRThread*) _PR_CreateThread(PRThreadType type,
             if ((PRUptrdiff)top & 0x3f) {
                 top = (char*)((PRUptrdiff)top & ~0x3f);
             }
+#endif
+#if defined(GC_LEAK_DETECTOR)
+            /*
+             * sorry, it is not safe to allocate the thread on the stack,
+             * because we assign to this object before the GC can learn
+             * about this thread. we'll just leak thread objects instead.
+             */
+            thread = PR_NEW(PRThread);
 #endif
             stack->thr = thread;
             memset(thread, 0, sizeof(PRThread));
@@ -1447,6 +1504,9 @@ PRThread* _PRI_AttachThread(PRThreadType type,
 PR_IMPLEMENT(PRThread*) PR_AttachThread(PRThreadType type,
     PRThreadPriority priority, PRThreadStack *stack)
 {
+#ifdef XP_MAC
+#pragma unused( type, priority, stack )
+#endif
     return PR_GetCurrentThread();
 }
 
@@ -1582,37 +1642,6 @@ PR_IMPLEMENT(void) PR_SetThreadPriority(PRThread *thread,
         thread->priority = newPri;
         _PR_MD_SET_PRIORITY(&(thread->md), newPri);
     } else _PR_SetThreadPriority(thread, newPri);
-}
-
-PR_IMPLEMENT(PRStatus) PR_SetCurrentThreadName(const char *name)
-{
-    PRThread *thread;
-    size_t nameLen;
-
-    if (!name) {
-        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-        return PR_FAILURE;
-    }
-
-    thread = PR_GetCurrentThread();
-    if (!thread)
-        return PR_FAILURE;
-
-    PR_Free(thread->name);
-    nameLen = strlen(name);
-    thread->name = (char *)PR_Malloc(nameLen + 1);
-    if (!thread->name)
-        return PR_FAILURE;
-    memcpy(thread->name, name, nameLen + 1);
-    _PR_MD_SET_CURRENT_THREAD_NAME(thread->name);
-    return PR_SUCCESS;
-}
-
-PR_IMPLEMENT(const char *) PR_GetThreadName(const PRThread *thread)
-{
-    if (!thread)
-        return NULL;
-    return thread->name;
 }
 
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 #include <ctype.h>
@@ -105,10 +137,6 @@ PR_IMPLEMENT(PRBool) PR_VersionCheck(const char *importedVersion)
     return PR_TRUE;
 }  /* PR_VersionCheck */
 
-PR_IMPLEMENT(const char*) PR_GetVersion(void)
-{
-    return PR_VERSION;
-}
 
 PR_IMPLEMENT(PRBool) PR_Initialized(void)
 {
@@ -177,6 +205,10 @@ static void _PR_InitStuff(void)
     _pr_sleeplock = PR_NewLock();
     PR_ASSERT(NULL != _pr_sleeplock);
 
+#ifdef GC_LEAK_DETECTOR
+    _PR_InitGarbageCollector();
+#endif
+
     _PR_InitThreads(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
     
 #ifdef WIN16
@@ -201,11 +233,11 @@ static void _PR_InitStuff(void)
     _PR_InitCMon();
     _PR_InitIO();
     _PR_InitNet();
-    _PR_InitTime();
     _PR_InitLog();
     _PR_InitLinker();
     _PR_InitCallOnce();
     _PR_InitDtoa();
+    _PR_InitTime();
     _PR_InitMW();
     _PR_InitRWLocks();
 
@@ -263,12 +295,20 @@ PR_IMPLEMENT(void) PR_UnblockClockInterrupts(void)
 PR_IMPLEMENT(void) PR_Init(
     PRThreadType type, PRThreadPriority priority, PRUintn maxPTDs)
 {
+#if defined(XP_MAC)
+#pragma unused (type, priority, maxPTDs)
+#endif
+
     _PR_ImplicitInitialization();
 }
 
 PR_IMPLEMENT(PRIntn) PR_Initialize(
     PRPrimordialFn prmain, PRIntn argc, char **argv, PRUintn maxPTDs)
 {
+#if defined(XP_MAC)
+#pragma unused (maxPTDs)
+#endif
+
     PRIntn rv;
     _PR_ImplicitInitialization();
     rv = prmain(argc, argv);
@@ -362,11 +402,6 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
         while (_pr_userActive > _pr_primordialExitCount) {
             PR_WaitCondVar(_pr_primordialExitCVar, PR_INTERVAL_NO_TIMEOUT);
         }
-        if (me->flags & _PR_SYSTEM) {
-            _pr_systemActive--;
-        } else {
-            _pr_userActive--;
-        }
         PR_Unlock(_pr_activeLock);
 
 #ifdef IRIX
@@ -376,8 +411,6 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
 		 */
     	PR_ASSERT((_PR_IS_NATIVE_THREAD(me)) || (me->cpu->id == 0));
 #endif
-
-        _PR_MD_EARLY_CLEANUP();
 
         _PR_CleanupMW();
         _PR_CleanupTime();
@@ -771,7 +804,7 @@ PR_IMPLEMENT(PRStatus) PR_CallOnce(
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
     if (!once->initialized) {
-	if (PR_ATOMIC_SET(&once->inProgress, 1) == 0) {
+	if (PR_AtomicSet(&once->inProgress, 1) == 0) {
 	    once->status = (*func)();
 	    PR_Lock(mod_init.ml);
 	    once->initialized = 1;
@@ -800,7 +833,7 @@ PR_IMPLEMENT(PRStatus) PR_CallOnceWithArg(
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
     if (!once->initialized) {
-	if (PR_ATOMIC_SET(&once->inProgress, 1) == 0) {
+	if (PR_AtomicSet(&once->inProgress, 1) == 0) {
 	    once->status = (*func)(arg);
 	    PR_Lock(mod_init.ml);
 	    once->initialized = 1;
@@ -824,9 +857,13 @@ PR_IMPLEMENT(PRStatus) PR_CallOnceWithArg(
 PRBool _PR_Obsolete(const char *obsolete, const char *preferred)
 {
 #if defined(DEBUG)
+#ifndef XP_MAC
     PR_fprintf(
         PR_STDERR, "'%s' is obsolete. Use '%s' instead.\n",
         obsolete, (NULL == preferred) ? "something else" : preferred);
+#else
+#pragma unused (obsolete, preferred)
+#endif
 #endif
     return PR_FALSE;
 }  /* _PR_Obsolete */

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /***********************************************************************
 **
@@ -65,8 +97,14 @@ static PRInt32 pageSize = 1024;
 static const char* baseName = "./";
 static const char *programName = "Random File";
 
+#ifdef XP_MAC
+#include "prlog.h"
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+#endif
+
 /***********************************************************************
-** PRIVATE FUNCTION:    RandomNum
+** PRIVATE FUNCTION:    Random
 ** DESCRIPTION:
 **   Generate a pseudo-random number
 ** INPUTS:      None
@@ -84,7 +122,7 @@ static const char *programName = "Random File";
 **      of the product. Seed is then updated with the return value
 **      promoted to a float-64.
 ***********************************************************************/
-static PRUint32 RandomNum(void)
+static PRUint32 Random(void)
 {
     PRUint32 rv;
     PRUint64 shift;
@@ -94,7 +132,7 @@ static PRUint32 RandomNum(void)
     LL_L2UI(rv, shift);
     seed = (PRFloat64)rv;
     return rv;
-}  /* RandomNum */
+}  /* Random */
 
 /***********************************************************************
 ** PRIVATE FUNCTION:    Thread
@@ -137,9 +175,9 @@ static void PR_CALLBACK Thread(void *arg)
     while (PR_TRUE)
     {
         PRUint32 bytes;
-        PRUint32 minor = (RandomNum() % cd->limit) + 1;
-        PRUint32 random = (RandomNum() % cd->limit) + 1;
-        PRUint32 pages = (RandomNum() % cd->limit) + 10;
+        PRUint32 minor = (Random() % cd->limit) + 1;
+        PRUint32 random = (Random() % cd->limit) + 1;
+        PRUint32 pages = (Random() % cd->limit) + 10;
         while (minor-- > 0)
         {
             cd->problem = sg_okay;
@@ -237,7 +275,7 @@ static PRCondVar *cv;
 **          Random File: Using loops = 2, threads = 10, limit = 57
 **          Random File: [min [avg] max] writes/sec average
 ***********************************************************************/
-int main(int argc, char **argv)
+int main (int argc,      char   *argv[])
 {
     PRLock *ml;
     PRUint32 id = 0;
@@ -290,6 +328,11 @@ int main(int argc, char **argv)
 
     interleave = PR_SecondsToInterval(10);
 
+#ifdef XP_MAC
+	SetupMacPrintfLog("ranfile.log");
+	debug_mode = 1;
+#endif
+
     ml = PR_NewLock();
     cv = PR_NewCondVar(ml);
 
@@ -314,7 +357,7 @@ int main(int argc, char **argv)
             hammer[active].writes = 0;
             hammer[active].action = sg_go;
             hammer[active].problem = sg_okay;
-            hammer[active].limit = (RandomNum() % limit) + 1;
+            hammer[active].limit = (Random() % limit) + 1;
             hammer[active].timein = PR_IntervalNow();
             hammer[active].thread = PR_CreateThread(
                 PR_USER_THREAD, Thread, &hammer[active],

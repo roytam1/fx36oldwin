@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Steve Streeter (Hewlett-Packard Company)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 
@@ -12,8 +45,15 @@
 #endif
 
 #if defined(XP_MACOSX) && defined(USE_MACH_DYLD)
-#include <Carbon/Carbon.h>
-#include <CoreFoundation/CoreFoundation.h>
+#include <CodeFragments.h>
+#include <TextUtils.h>
+#include <Types.h>
+#include <Aliases.h>
+#include <CFURL.h>
+#include <CFBundle.h>
+#include <CFString.h>
+#include <CFDictionary.h>
+#include <CFData.h>
 #endif
 
 #ifdef XP_UNIX
@@ -34,9 +74,6 @@
 #endif
 #ifdef AIX
 #include <sys/ldr.h>
-#ifndef L_IGNOREUNLOAD /* AIX 4.3.3 does not have L_IGNOREUNLOAD. */
-#define L_IGNOREUNLOAD 0x10000000
-#endif
 #endif
 #ifdef OSF1
 #include <loader.h>
@@ -51,11 +88,75 @@
 
 #define _PR_DEFAULT_LD_FLAGS PR_LD_LAZY
 
+#ifdef VMS
+/* These are all require for the PR_GetLibraryFilePathname implementation */
+#include <descrip.h>
+#include <dvidef.h>
+#include <fibdef.h>
+#include <iodef.h>
+#include <lib$routines.h>
+#include <ssdef.h>
+#include <starlet.h>
+#include <stsdef.h>
+#include <unixlib.h>
+
+#pragma __nostandard 
+#pragma __member_alignment __save
+#pragma __nomember_alignment
+#ifdef __INITIAL_POINTER_SIZE
+#pragma __required_pointer_size __save 
+#pragma __required_pointer_size __short
+#endif
+ 
+typedef struct _imcb {
+    struct _imcb *imcb$l_flink;         
+    struct _imcb *imcb$l_blink;         
+    unsigned short int imcb$w_size;     
+    unsigned char imcb$b_type;          
+    char imcb$b_resv_1;                 
+    unsigned char imcb$b_access_mode;   
+    unsigned char imcb$b_act_code;      
+    unsigned short int imcb$w_chan;     
+    unsigned int imcb$l_flags;		
+    char imcb$t_image_name [40];        
+    unsigned int imcb$l_symvec_size; 
+    unsigned __int64 imcb$q_ident;
+    void *imcb$l_starting_address;
+    void *imcb$l_end_address;
+} IMCB;
+ 
+#pragma __member_alignment __restore
+#ifdef __INITIAL_POINTER_SIZE 
+#pragma __required_pointer_size __restore
+#endif
+#pragma __standard
+ 
+typedef struct {
+    short   buflen;
+    short   itmcode;
+    void    *buffer;
+    void    *retlen;
+} ITMLST;
+
+typedef struct {
+    short cond;
+    short count;
+    int   rest;
+} IOSB;
+
+typedef unsigned long int ulong_t;
+
+struct _imcb *IAC$GL_IMAGE_LIST = NULL;
+
+#define MAX_DEVNAM 64
+#define MAX_FILNAM 255
+#endif  /* VMS */
+
 /*
  * On these platforms, symbols have a leading '_'.
  */
-#if (defined(DARWIN) && defined(USE_MACH_DYLD)) \
-    || defined(XP_OS2) \
+#if defined(SUNOS4) || (defined(DARWIN) && defined(USE_MACH_DYLD)) \
+    || defined(NEXTSTEP) || defined(WIN16) || defined(XP_OS2) \
     || ((defined(OPENBSD) || defined(NETBSD)) && !defined(__ELF__))
 #define NEED_LEADING_UNDERSCORE
 #endif
@@ -167,12 +268,18 @@ void _PR_InitLinker(void)
 #if defined(XP_PC)
     lm = PR_NEWZAP(PRLibrary);
     lm->name = strdup("Executable");
-#if defined(XP_OS2)
-    lm->dlh = NULLHANDLE;
+        /* 
+        ** In WIN32, GetProcAddress(...) expects a module handle in order to
+        ** get exported symbols from the executable...
+        **
+        ** However, in WIN16 this is accomplished by passing NULL to 
+        ** GetProcAddress(...)
+        */
+#if defined(_WIN32)
+        lm->dlh = GetModuleHandle(NULL);
 #else
-    /* A module handle for the executable. */
-    lm->dlh = GetModuleHandle(NULL);
-#endif /* ! XP_OS2 */
+        lm->dlh = (HINSTANCE)NULL;
+#endif /* ! _WIN32 */
 
     lm->refCount    = 1;
     lm->staticTable = NULL;
@@ -181,7 +288,7 @@ void _PR_InitLinker(void)
 
 #elif defined(XP_UNIX)
 #ifdef HAVE_DLL
-#if defined(USE_DLFCN) && !defined(NO_DLOPEN_NULL)
+#ifdef USE_DLFCN
     h = dlopen(0, RTLD_LAZY);
     if (!h) {
         char *error;
@@ -197,8 +304,8 @@ void _PR_InitLinker(void)
 #elif defined(USE_HPSHL)
     h = NULL;
     /* don't abort with this NULL */
-#elif defined(USE_MACH_DYLD) || defined(NO_DLOPEN_NULL)
-    h = NULL; /* XXXX  toshok */ /* XXXX  vlad */
+#elif defined(USE_MACH_DYLD)
+    h = NULL; /* XXXX  toshok */
 #else
 #error no dll strategy
 #endif /* USE_DLFCN */
@@ -223,11 +330,39 @@ void _PR_InitLinker(void)
     PR_ExitMonitor(pr_linker_lock);
 }
 
+#if defined(WIN16)
 /*
- * _PR_ShutdownLinker does not unload the dlls loaded by the application
- * via calls to PR_LoadLibrary.  Any dlls that still remain on the
- * pr_loadmap list when NSPR shuts down are application programming errors.
- * The only exception is pr_exe_loadmap, which was added to the list by
+ * _PR_ShutdownLinker unloads all dlls loaded by the application via
+ * calls to PR_LoadLibrary
+ */
+void _PR_ShutdownLinker(void)
+{
+    PR_EnterMonitor(pr_linker_lock);
+
+    while (pr_loadmap) {
+    if (pr_loadmap->refCount > 1) {
+#ifdef DEBUG
+        fprintf(stderr, "# Forcing library to unload: %s (%d outstanding references)\n",
+            pr_loadmap->name, pr_loadmap->refCount);
+#endif
+        pr_loadmap->refCount = 1;
+    }
+    PR_UnloadLibrary(pr_loadmap);
+    }
+    
+    PR_ExitMonitor(pr_linker_lock);
+
+    PR_DestroyMonitor(pr_linker_lock);
+    pr_linker_lock = NULL;
+}
+#else
+/*
+ * _PR_ShutdownLinker was originally only used on WIN16 (see above),
+ * but I think it should also be used on other platforms.  However,
+ * I disagree with the original implementation's unloading the dlls
+ * for the application.  Any dlls that still remain on the pr_loadmap
+ * list when NSPR shuts down are application programming errors.  The
+ * only exception is pr_exe_loadmap, which was added to the list by
  * NSPR and hence should be cleaned up by NSPR.
  */
 void _PR_ShutdownLinker(void)
@@ -242,6 +377,7 @@ void _PR_ShutdownLinker(void)
         _pr_currentLibPath = NULL;
     }
 }
+#endif
 
 /******************************************************************************/
 
@@ -468,16 +604,10 @@ pr_LoadMachDyldModule(const char *name)
             == NSObjectFileImageSuccess) {
         h = NSLinkModule(ofi, name, NSLINKMODULE_OPTION_PRIVATE
                          | NSLINKMODULE_OPTION_RETURN_ON_ERROR);
-        if (h == NULL) {
-            NSLinkEditErrors linkEditError;
-            int errorNum;
-            const char *fileName;
-            const char *errorString;
-            NSLinkEditError(&linkEditError, &errorNum, &fileName, &errorString);
-            PR_LOG(_pr_linker_lm, PR_LOG_MIN, 
-                   ("LoadMachDyldModule error %d:%d for file %s:\n%s",
-                    linkEditError, errorNum, fileName, errorString));
-        }
+        /*
+         * TODO: If NSLinkModule fails, use NSLinkEditError to retrieve
+         * error information.
+         */
         if (NSDestroyObjectFileImage(ofi) == FALSE) {
             if (h) {
                 (void)NSUnLinkModule(h, NSUNLINKMODULE_OPTION_NONE);
@@ -637,8 +767,8 @@ pr_LoadViaDyld(const char *name, PRLibrary *lm)
         if (lm->image == NULL) {
             NSLinkEditErrors linkEditError;
             int errorNum;
-            const char *fileName;
             const char *errorString;
+            const char *fileName;
             NSLinkEditError(&linkEditError, &errorNum, &fileName, &errorString);
             PR_LOG(_pr_linker_lm, PR_LOG_MIN, 
                    ("LoadMachDyldModule error %d:%d for file %s:\n%s",
@@ -751,7 +881,7 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
     }
 #endif /* XP_OS2 */
 
-#ifdef WIN32
+#if defined(WIN32) || defined(WIN16)
     {
     HINSTANCE h;
 
@@ -784,7 +914,7 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
     lm->next = pr_loadmap;
     pr_loadmap = lm;
     }
-#endif /* WIN32 */
+#endif /* WIN32 || WIN16 */
 
 #if defined(XP_MACOSX) && defined(USE_MACH_DYLD)
     {
@@ -827,7 +957,7 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
 #else
     int dl_flags = 0;
 #endif
-    void *h = NULL;
+    void *h;
 
     if (flags & PR_LD_LAZY) {
         dl_flags |= RTLD_LAZY;
@@ -841,17 +971,7 @@ pr_LoadLibraryByPathname(const char *name, PRIntn flags)
     if (flags & PR_LD_LOCAL) {
         dl_flags |= RTLD_LOCAL;
     }
-#if defined(DARWIN)
-    /* ensure the file exists if it contains a slash character i.e. path */
-    /* DARWIN's dlopen ignores the provided path and checks for the */
-    /* plain filename in DYLD_LIBRARY_PATH */
-    if (strchr(name, PR_DIRECTORY_SEPARATOR) == NULL ||
-        PR_Access(name, PR_ACCESS_EXISTS) == PR_SUCCESS) {
-            h = dlopen(name, dl_flags);
-        }
-#else
     h = dlopen(name, dl_flags);
-#endif
 #elif defined(USE_HPSHL)
     int shl_flags = 0;
     shl_t h;
@@ -1128,19 +1248,12 @@ PR_UnloadLibrary(PRLibrary *lib)
     int result = 0;
     PRStatus status = PR_SUCCESS;
 
-    if (lib == 0) {
+    if ((lib == 0) || (lib->refCount <= 0)) {
         PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
         return PR_FAILURE;
     }
 
     PR_EnterMonitor(pr_linker_lock);
-
-    if (lib->refCount <= 0) {
-        PR_ExitMonitor(pr_linker_lock);
-        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-        return PR_FAILURE;
-    }
-
     if (--lib->refCount > 0) {
     PR_LOG(_pr_linker_lm, PR_LOG_MIN,
            ("%s decr => %d",
@@ -1271,9 +1384,9 @@ pr_FindSymbolInLib(PRLibrary *lm, const char *name)
 #endif
 #endif  /* XP_OS2 */
 
-#ifdef WIN32
+#if defined(WIN32) || defined(WIN16)
     f = GetProcAddress(lm->dlh, name);
-#endif  /* WIN32 */
+#endif  /* WIN32 || WIN16 */
 
 #if defined(XP_MACOSX) && defined(USE_MACH_DYLD)
 /* add this offset to skip the leading underscore in name */
@@ -1503,7 +1616,9 @@ PR_LoadStaticLibrary(const char *name, const PRStaticLinkTable *slt)
 PR_IMPLEMENT(char *)
 PR_GetLibraryFilePathname(const char *name, PRFuncPtr addr)
 {
-#if defined(USE_DLFCN) && defined(HAVE_DLADDR)
+#if defined(USE_DLFCN) && (defined(SOLARIS) || defined(FREEBSD) \
+        || defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
+        || defined(DARWIN))
     Dl_info dli;
     char *result;
 
@@ -1662,6 +1777,96 @@ PR_GetLibraryFilePathname(const char *name, PRFuncPtr addr)
     }
     PR_SetError(PR_LIBRARY_NOT_LOADED_ERROR, 0);
     return NULL;
+#elif defined(VMS)
+    /* Contributed by Colin Blake of HP */
+    struct _imcb	*icb;
+    ulong_t 		status;
+    char                device_name[MAX_DEVNAM];
+    int                 device_name_len;
+    $DESCRIPTOR         (device_name_desc, device_name);
+    struct fibdef	fib;
+    struct dsc$descriptor_s fib_desc = 
+	{ sizeof(struct fibdef), DSC$K_DTYPE_Z, DSC$K_CLASS_S, (char *)&fib } ;
+    IOSB		iosb;
+    ITMLST		devlst[2] = {
+            		{MAX_DEVNAM, DVI$_ALLDEVNAM, device_name, &device_name_len},
+            		{0,0,0,0}};
+    short               file_name_len;
+    char                file_name[MAX_FILNAM+1];
+    char		*result = NULL;
+    struct dsc$descriptor_s file_name_desc = 
+	{ MAX_FILNAM, DSC$K_DTYPE_T, DSC$K_CLASS_S, (char *) &file_name[0] } ;
+
+    /*
+    ** The address for the process image list could change in future versions
+    ** of the operating system. 7FFD0688 is valid for V7.2 and V7.3 releases,
+    ** so we use that for the default, but allow an environment variable
+    ** (logical name) to override.
+    */
+    if (IAC$GL_IMAGE_LIST == NULL) {
+        char *p = getenv("MOZILLA_IAC_GL_IMAGE_LIST");
+        if (p)
+            IAC$GL_IMAGE_LIST = (struct _imcb *) strtol(p,NULL,0);
+        else
+            IAC$GL_IMAGE_LIST = (struct _imcb *) 0x7FFD0688;
+    }
+
+    for (icb = IAC$GL_IMAGE_LIST->imcb$l_flink;
+         icb != IAC$GL_IMAGE_LIST;
+         icb = icb->imcb$l_flink) {
+        if (((void *)addr >= icb->imcb$l_starting_address) && 
+	    ((void *)addr <= icb->imcb$l_end_address)) {
+	    /*
+	    ** This is the correct image.
+	    ** Get the device name.
+	    */
+	    status = sys$getdviw(0,icb->imcb$w_chan,0,&devlst,0,0,0,0);
+	    if ($VMS_STATUS_SUCCESS(status))
+		device_name_desc.dsc$w_length = device_name_len;
+
+	    /*
+	    ** Get the FID.
+	    */
+	    memset(&fib,0,sizeof(struct fibdef));
+	    status = sys$qiow(0,icb->imcb$w_chan,IO$_ACCESS,&iosb,
+                		0,0,&fib_desc,0,0,0,0,0);
+
+	    /*
+	    ** If we got the FID, now look up its name (if for some reason
+	    ** we didn't get the device name, this call will fail).
+	    */
+	    if (($VMS_STATUS_SUCCESS(status)) && ($VMS_STATUS_SUCCESS(iosb.cond))) {
+		status = lib$fid_to_name (
+                    &device_name_desc,
+                    &fib.fib$w_fid,
+                    &file_name_desc,
+                    &file_name_len,
+                    0, 0);
+
+		/*
+		** If we succeeded then remove the version number and
+		** return a copy of the UNIX format version of the file name.
+		*/
+		if ($VMS_STATUS_SUCCESS(status)) {
+		    char *p, *result;
+		    file_name[file_name_len] = 0;
+		    p = strrchr(file_name,';');
+		    if (p) *p = 0;
+		    p = decc$translate_vms(&file_name[0]);
+		    result = PR_Malloc(strlen(p)+1);
+		    if (result != NULL) {
+			strcpy(result, p);
+		    }
+		    return result;
+		}
+            }
+	}
+    }
+
+    /* Didn't find it */
+    PR_SetError(PR_LIBRARY_NOT_LOADED_ERROR, 0);
+    return NULL;
+
 #elif defined(HPUX) && defined(USE_HPSHL)
     int index;
     struct shl_descriptor desc;
@@ -1718,35 +1923,24 @@ PR_GetLibraryFilePathname(const char *name, PRFuncPtr addr)
     }
     return result;
 #elif defined(WIN32)
-    PRUnichar wname[MAX_PATH];
-    HMODULE handle = NULL;
-    PRUnichar module_name[MAX_PATH];
-    int len;
+    HMODULE handle;
+    char module_name[MAX_PATH];
     char *result;
 
-    if (MultiByteToWideChar(CP_ACP, 0, name, -1, wname, MAX_PATH)) {
-        handle = GetModuleHandleW(wname);
-    }
+    handle = GetModuleHandle(name);
     if (handle == NULL) {
         PR_SetError(PR_LIBRARY_NOT_LOADED_ERROR, _MD_ERRNO());
         DLLErrorInternal(_MD_ERRNO());
         return NULL;
     }
-    if (GetModuleFileNameW(handle, module_name, MAX_PATH) == 0) {
+    if (GetModuleFileName(handle, module_name, sizeof module_name) == 0) {
         /* should not happen */
         _PR_MD_MAP_DEFAULT_ERROR(_MD_ERRNO());
         return NULL;
     }
-    len = WideCharToMultiByte(CP_ACP, 0, module_name, -1,
-                              NULL, 0, NULL, NULL);
-    if (len == 0) {
-        _PR_MD_MAP_DEFAULT_ERROR(_MD_ERRNO());
-        return NULL;
-    }
-    result = PR_Malloc(len * sizeof(PRUnichar));
+    result = PR_Malloc(strlen(module_name)+1);
     if (result != NULL) {
-        WideCharToMultiByte(CP_ACP, 0, module_name, -1,
-                            result, len, NULL, NULL);
+        strcpy(result, module_name);
     }
     return result;
 #elif defined(XP_OS2)

@@ -1,8 +1,40 @@
 #! gmake
 # 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Netscape Portable Runtime (NSPR).
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998-2000
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 ################################################################################
 # We used to have a 4 pass build process.  Now we do everything in one pass.
@@ -74,13 +106,13 @@ endif
 #
 
 ifdef LIBRARY_NAME
-ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
+ifeq (,$(filter-out WINNT OS2,$(OS_ARCH)))
 
 #
-# Win95 and OS/2 require library names conforming to the 8.3 rule.
+# Win95, Win16, and OS/2 require library names conforming to the 8.3 rule.
 # other platforms do not.
 #
-ifeq (,$(filter-out WIN95 WINCE WINMO OS2,$(OS_TARGET)))
+ifeq (,$(filter-out WIN95 OS2,$(OS_TARGET)))
 LIBRARY		= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION)_s.$(LIB_SUFFIX)
 SHARED_LIBRARY	= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION).$(DLL_SUFFIX)
 IMPORT_LIBRARY	= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION).$(LIB_SUFFIX)
@@ -107,9 +139,9 @@ endif
 endif
 
 ifndef TARGETS
-ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
+ifeq (,$(filter-out WINNT OS2,$(OS_ARCH)))
 TARGETS		= $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
-ifdef MOZ_DEBUG_SYMBOLS
+ifndef BUILD_OPT
 ifdef MSC_VER
 ifneq (,$(filter-out 1100 1200,$(MSC_VER)))
 TARGETS		+= $(SHARED_LIB_PDB)
@@ -134,20 +166,33 @@ endif
 
 ALL_TRASH		= $(TARGETS) $(OBJS) $(RES) $(filter-out . .., $(OBJDIR)) LOGS TAGS $(GARBAGE) \
 			  $(NOSUCHFILE) \
-			  $(OBJS:.$(OBJ_SUFFIX)=.i_o) \
 			  so_locations
+
+ifeq ($(OS_ARCH),OpenVMS)
+ALL_TRASH		+= $(wildcard *.c*_defines)
+ifdef SHARED_LIBRARY
+VMS_SYMVEC_FILE		= $(SHARED_LIBRARY:.$(DLL_SUFFIX)=_symvec.opt)
+VMS_SYMVEC_FILE_MODULE	= $(srcdir)/$(LIBRARY_NAME)_symvec.opt
+ALL_TRASH		+= $(VMS_SYMVEC_FILE)
+endif
+endif
 
 ifndef RELEASE_LIBS_DEST
 RELEASE_LIBS_DEST	= $(RELEASE_LIB_DIR)
 endif
 
-define MAKE_IN_DIR
-	$(MAKE) -C $(dir) $@
-
-endef # do not remove the blank line!
-
 ifdef DIRS
-LOOP_OVER_DIRS = $(foreach dir,$(DIRS),$(MAKE_IN_DIR))
+LOOP_OVER_DIRS		=					\
+	@for d in $(DIRS); do					\
+		if test -d $$d; then				\
+			set -e;					\
+			echo "cd $$d; $(MAKE) $@";		\
+			$(MAKE) -C $$d $@;			\
+			set +e;					\
+		else						\
+			echo "Skipping non-directory $$d...";	\
+		fi;						\
+	done
 endif
 
 ################################################################################
@@ -249,13 +294,6 @@ $(NFSPWD):
 $(PROGRAM): $(OBJS)
 	@$(MAKE_OBJDIR)
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-ifdef MOZ_PROFILE_USE
-# In the second pass, we need to merge the pgc files into the pgd file.
-# The compiler would do this for us automatically if they were in the right
-# place, but they're in dist/bin.
-	python $(topsrcdir)/build/win32/pgomerge.py \
-		$(notdir $(PROGRAM:.exe=)) $(DIST)/bin
-endif	# MOZ_PROFILE_USE
 	$(CC) $(OBJS) -Fe$@ -link $(LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS)
 ifdef MT
 	@if test -f $@.manifest; then \
@@ -263,13 +301,8 @@ ifdef MT
 		rm -f $@.manifest; \
 	fi
 endif	# MSVC with manifest tool
-ifdef MOZ_PROFILE_GENERATE
-# touch it a few seconds into the future to work around FAT's
-# 2-second granularity
-	touch -t `date +%Y%m%d%H%M.%S -d "now+5seconds"` pgo.relink
-endif	# MOZ_PROFILE_GENERATE
 else	# WINNT && !GCC
-	$(CC) -o $@ $(CFLAGS) $(OBJS) $(LDFLAGS) $(WRAP_LDFLAGS)
+	$(CC) -o $@ $(CFLAGS) $(OBJS) $(LDFLAGS)
 endif	# WINNT && !GCC
 ifdef ENABLE_STRIP
 	$(STRIP) $@
@@ -285,13 +318,6 @@ ifeq ($(OS_TARGET), OS2)
 $(IMPORT_LIBRARY): $(MAPFILE)
 	rm -f $@
 	$(IMPLIB) $@ $(MAPFILE)
-else
-ifeq (,$(filter-out WIN95 WINCE WINMO,$(OS_TARGET)))
-# PDBs and import libraries need to depend on the shared library to
-# order dependencies properly.
-$(IMPORT_LIBRARY): $(SHARED_LIBRARY)
-$(SHARED_LIB_PDB): $(SHARED_LIBRARY)
-endif
 endif
 
 $(SHARED_LIBRARY): $(OBJS) $(RES) $(MAPFILE)
@@ -307,10 +333,6 @@ ifeq ($(OS_ARCH)$(OS_RELEASE), AIX4.1)
 		-bM:SRE -bnoentry $(OS_LIBS) $(EXTRA_LIBS)
 else	# AIX 4.1
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-ifdef MOZ_PROFILE_USE
-	python $(topsrcdir)/build/win32/pgomerge.py \
-		$(notdir $(SHARED_LIBRARY:.$(DLL_SUFFIX)=)) $(DIST)/bin
-endif	# MOZ_PROFILE_USE
 	$(LINK_DLL) -MAP $(DLLBASE) $(DLL_LIBS) $(EXTRA_LIBS) $(OBJS) $(RES)
 ifdef MT
 	@if test -f $@.manifest; then \
@@ -318,57 +340,21 @@ ifdef MT
 		rm -f $@.manifest; \
 	fi
 endif	# MSVC with manifest tool
-ifdef MOZ_PROFILE_GENERATE
-	touch -t `date +%Y%m%d%H%M.%S -d "now+5seconds"` pgo.relink
-endif	# MOZ_PROFILE_GENERATE
 else	# WINNT && !GCC
-	$(MKSHLIB) $(OBJS) $(RES) $(LDFLAGS) $(WRAP_LDFLAGS) $(EXTRA_LIBS)
+ifeq ($(OS_TARGET), OpenVMS)
+	@if test ! -f $(VMS_SYMVEC_FILE); then \
+	  if test -f $(VMS_SYMVEC_FILE_MODULE); then \
+	    echo Creating component options file $(VMS_SYMVEC_FILE); \
+	    cp $(VMS_SYMVEC_FILE_MODULE) $(VMS_SYMVEC_FILE); \
+	  fi; \
+	fi
+endif	# OpenVMS
+	$(MKSHLIB) $(OBJS) $(RES) $(EXTRA_LIBS)
 endif	# WINNT && !GCC
 endif	# AIX 4.1
 ifdef ENABLE_STRIP
 	$(STRIP) $@
 endif
-
-################################################################################
-
-ifdef MOZ_PROFILE_USE
-ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-# When building with PGO, we have to make sure to re-link
-# in the MOZ_PROFILE_USE phase if we linked in the
-# MOZ_PROFILE_GENERATE phase. We'll touch this pgo.relink
-# file in the link rule in the GENERATE phase to indicate
-# that we need a relink.
-$(SHARED_LIBRARY): pgo.relink
-
-$(PROGRAM): pgo.relink
-
-endif	# WINNT && !GCC
-endif	# MOZ_PROFILE_USE
-
-ifneq (,$(MOZ_PROFILE_GENERATE)$(MOZ_PROFILE_USE))
-ifdef NS_USE_GCC
-# Force rebuilding libraries and programs in both passes because each
-# pass uses different object files.
-$(PROGRAM) $(SHARED_LIBRARY) $(LIBRARY): FORCE
-.PHONY: FORCE
-endif
-endif
-
-################################################################################
-
-ifdef MOZ_PROFILE_GENERATE
-# Clean up profiling data during PROFILE_GENERATE phase
-export::
-ifeq ($(OS_ARCH)_$(NS_USE_GCC), WINNT_)
-	$(foreach pgd,$(wildcard *.pgd),pgomgr -clear $(pgd);)
-else
-ifdef NS_USE_GCC
-	-$(RM) *.gcda
-endif
-endif
-endif
-
-################################################################################
 
 ifeq ($(OS_ARCH),WINNT)
 $(RES): $(RESNAME)
@@ -414,8 +400,9 @@ NEED_ABSOLUTE_PATH = 1
 endif
 
 ifdef NEED_ABSOLUTE_PATH
+PWD := $(shell pwd)
 # The quotes allow absolute paths to contain spaces.
-pr_abspath = "$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))"
+pr_abspath = "$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(PWD)/$(1)))"
 endif
 
 $(OBJDIR)/%.$(OBJ_SUFFIX): %.cpp
@@ -423,14 +410,10 @@ $(OBJDIR)/%.$(OBJ_SUFFIX): %.cpp
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
 	$(CCC) -Fo$@ -c $(CCCFLAGS) $(call pr_abspath,$<)
 else
-ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINCE)
-	$(CCC) -Fo$@ -c $(CCCFLAGS) $<
-else
 ifdef NEED_ABSOLUTE_PATH
 	$(CCC) -o $@ -c $(CCCFLAGS) $(call pr_abspath,$<)
 else
 	$(CCC) -o $@ -c $(CCCFLAGS) $<
-endif
 endif
 endif
 
@@ -442,14 +425,10 @@ $(OBJDIR)/%.$(OBJ_SUFFIX): %.c
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
 	$(CC) -Fo$@ -c $(CFLAGS) $(call pr_abspath,$<)
 else
-ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINCE)
-	$(CC) -Fo$@ -c $(CFLAGS) $<
-else
 ifdef NEED_ABSOLUTE_PATH
 	$(CC) -o $@ -c $(CFLAGS) $(call pr_abspath,$<)
 else
 	$(CC) -o $@ -c $(CFLAGS) $<
-endif
 endif
 endif
 
@@ -490,14 +469,6 @@ $(filter $(OBJDIR)/%.$(OBJ_SUFFIX),$(OBJS)): $(OBJDIR)/%.$(OBJ_SUFFIX): $(DUMMY_
 ################################################################################
 # Special gmake rules.
 ################################################################################
-
-#
-# Disallow parallel builds with MSVC < 8 since it can't open the PDB file in
-# parallel.
-#
-ifeq (,$(filter-out 1200 1300 1310,$(MSC_VER)))
-.NOTPARALLEL:
-endif
 
 #
 # Re-define the list of default suffixes, so gmake won't have to churn through

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 
@@ -288,6 +320,14 @@ static PRStatus PR_CALLBACK SocketConnectContinue(
 
 #elif defined(WIN32) || defined(WIN16)
 
+#if defined(WIN32)
+    /*
+     * The sleep circumvents a bug in Win32 WinSock.
+     * See Microsoft Knowledge Base article ID: Q165989.
+     */
+    Sleep(0);
+#endif /* WIN32 */
+
     if (out_flags & PR_POLL_EXCEPT) {
         int len = sizeof(err);
         if (getsockopt(osfd, (int)SOL_SOCKET, SO_ERROR, (char *) &err, &len)
@@ -314,6 +354,14 @@ static PRStatus PR_CALLBACK SocketConnectContinue(
         return PR_FAILURE;
     }
     return PR_SUCCESS;
+
+#elif defined(XP_MAC)
+
+    err = _MD_mac_get_nonblocking_connect_error(fd);
+    if (err == -1)
+        return PR_FAILURE;
+	else     
+		return PR_SUCCESS;
 
 #elif defined(XP_BEOS)
 
@@ -411,6 +459,11 @@ PRIntervalTime timeout)
 	 * of the listening socket.  As an optimization, these
 	 * platforms can skip the following _PR_MD_MAKE_NONBLOCK
 	 * call.
+	 * 
+	 * On Mac, we MUST make this call, because _PR_MD_MAKE_NONBLOCK
+	 * (which maps to _MD_makenonblock, see macsockotpt.c)
+	 * installs the async notifier routine needed to make blocking
+	 * I/O work properly.
 	 */
 #if !defined(SOLARIS) && !defined(IRIX) && !defined(WINNT)
 	_PR_MD_MAKE_NONBLOCK(fd2);
@@ -717,6 +770,10 @@ static PRInt64 PR_CALLBACK SocketAvailable64(PRFileDesc *fd)
 
 static PRStatus PR_CALLBACK SocketSync(PRFileDesc *fd)
 {
+#if defined(XP_MAC)
+#pragma unused (fd)
+#endif
+
 	return PR_SUCCESS;
 }
 
@@ -1065,6 +1122,9 @@ static PRStatus PR_CALLBACK SocketGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
 static PRInt16 PR_CALLBACK SocketPoll(
     PRFileDesc *fd, PRInt16 in_flags, PRInt16 *out_flags)
 {
+#ifdef XP_MAC
+#pragma unused( fd, in_flags )
+#endif
     *out_flags = 0;
     return in_flags;
 }  /* SocketPoll */
@@ -1629,7 +1689,11 @@ PR_IMPLEMENT(PRInt32) PR_FD_NISSET(PROsfd fd, PR_fd_set *set)
 
 
 #if !defined(NEED_SELECT)
+#if !defined(XP_MAC)
 #include "obsolete/probslet.h"
+#else
+#include "probslet.h"
+#endif
 
 #define PD_INCR 20
 

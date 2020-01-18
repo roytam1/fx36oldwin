@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nspr_win32_defs_h___
 #define nspr_win32_defs_h___
@@ -34,9 +66,9 @@
 #define _PR_SI_SYSNAME        "WINNT"
 #if defined(_M_IX86) || defined(_X86_)
 #define _PR_SI_ARCHITECTURE   "x86"
-#elif defined(_M_X64) || defined(_M_AMD64) || defined(_AMD64_)
+#elif defined(_AMD64_)
 #define _PR_SI_ARCHITECTURE   "x86-64"
-#elif defined(_M_IA64) || defined(_IA64_)
+#elif defined(_IA64_)
 #define _PR_SI_ARCHITECTURE   "ia64"
 #else
 #error unknown processor architecture
@@ -376,7 +408,6 @@ extern int _PR_NTFiberSafeSelect(int, fd_set *, fd_set *, fd_set *,
 #define _MD_END_THREAD              _PR_MD_END_THREAD
 #define _MD_YIELD                   _PR_MD_YIELD
 #define _MD_SET_PRIORITY            _PR_MD_SET_PRIORITY
-#define _MD_SET_CURRENT_THREAD_NAME _PR_MD_SET_CURRENT_THREAD_NAME
 #define _MD_CLEAN_THREAD            _PR_MD_CLEAN_THREAD
 #define _MD_SETTHREADAFFINITYMASK   _PR_MD_SETTHREADAFFINITYMASK
 #define _MD_GETTHREADAFFINITYMASK   _PR_MD_GETTHREADAFFINITYMASK
@@ -435,7 +466,6 @@ extern  struct _MDLock              _pr_ioq_lock;
 #define _MD_UNBLOCK_CLOCK_INTERRUPTS()
 #define _MD_EARLY_INIT                _PR_MD_EARLY_INIT
 #define _MD_FINAL_INIT()
-#define _MD_EARLY_CLEANUP()
 #define _MD_INIT_CPUS()
 #define _MD_INIT_RUNNING_CPU(cpu)
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 
@@ -22,7 +54,8 @@
 #endif
 
 /* To get FIONREAD */
-#if defined(UNIXWARE)
+#if defined(NCR) || defined(UNIXWARE) || defined(NEC) || defined(SNI) \
+        || defined(SONY)
 #include <sys/filio.h>
 #endif
 
@@ -38,14 +71,14 @@
     || (defined(__GLIBC__) && __GLIBC__ >= 2)
 #define _PRSockLen_t socklen_t
 #elif defined(IRIX) || defined(HPUX) || defined(OSF1) || defined(SOLARIS) \
-    || defined(AIX4_1) || defined(LINUX) \
-    || defined(BSDI) || defined(SCO) \
-    || defined(DARWIN) \
-    || defined(QNX)
+    || defined(AIX4_1) || defined(LINUX) || defined(SONY) \
+    || defined(BSDI) || defined(SCO) || defined(NEC) || defined(SNI) \
+    || defined(SUNOS4) || defined(NCR) || defined(DARWIN) \
+    || defined(NEXTSTEP) || defined(QNX)
 #define _PRSockLen_t int
 #elif (defined(AIX) && !defined(AIX4_1)) || defined(FREEBSD) \
     || defined(NETBSD) || defined(OPENBSD) || defined(UNIXWARE) \
-    || defined(DGUX) || defined(NTO) || defined(RISCOS)
+    || defined(DGUX) || defined(VMS) || defined(NTO) || defined(RISCOS)
 #define _PRSockLen_t size_t
 #else
 #error "Cannot determine architecture"
@@ -767,7 +800,7 @@ PRInt32 _MD_recv(PRFileDesc *fd, void *buf, PRInt32 amount,
  * from socketpairs.  As long as we don't use flags on socketpairs, this
  * is a decent fix. - mikep
  */
-#if defined(UNIXWARE) || defined(SOLARIS)
+#if defined(UNIXWARE) || defined(SOLARIS) || defined(NCR)
     while ((rv = read(osfd,buf,amount)) == -1) {
 #else
     while ((rv = recv(osfd,buf,amount,flags)) == -1) {
@@ -2176,7 +2209,11 @@ void _MD_MakeNonblock(PRFileDesc *fd)
      * otherwise connect() still blocks and can be interrupted by SIGALRM.
      */
 
+#ifdef SUNOS4
+    fcntl(osfd, F_SETFL, flags | FNDELAY);
+#else
     fcntl(osfd, F_SETFL, flags | O_NONBLOCK);
+#endif
     }
 
 PRInt32 _MD_open(const char *name, PRIntn flags, PRIntn mode)
@@ -2218,10 +2255,6 @@ PRInt32 _MD_open(const char *name, PRIntn flags, PRIntn mode)
         if (NULL !=_pr_rename_lock)
             PR_Lock(_pr_rename_lock);
     }
-
-#if defined(ANDROID)
-    osflags |= O_LARGEFILE;
-#endif
 
     rv = _md_iovector._open64(name, osflags, mode);
 
@@ -2616,17 +2649,7 @@ PRInt32 _MD_getopenfileinfo64(const PRFileDesc *fd, PRFileInfo64 *info)
     return rv;
 }
 
-/*
- * _md_iovector._open64 must be initialized to 'open' so that _PR_InitLog can
- * open the log file during NSPR initialization, before _md_iovector is
- * initialized by _PR_MD_FINAL_INIT.  This means the log file cannot be a
- * large file on some platforms.
- */
-#ifdef SYMBIAN
-struct _MD_IOVector _md_iovector; /* Will crash if NSPR_LOG_FILE is set. */
-#else
 struct _MD_IOVector _md_iovector = { open };
-#endif
 
 /*
 ** These implementations are to emulate large file routines on systems that
@@ -2709,23 +2732,6 @@ static void* _MD_Unix_mmap64(
 }  /* _MD_Unix_mmap64 */
 #endif /* defined(_PR_NO_LARGE_FILES) || defined(SOLARIS2_5) */
 
-/* Android doesn't have mmap64. */
-#if defined(ANDROID)
-extern void *__mmap2(void *, size_t, int, int, int, size_t);
-
-#define ANDROID_PAGE_SIZE 4096
-
-static void *
-mmap64(void *addr, size_t len, int prot, int flags, int fd, loff_t offset)
-{
-    if (offset & (ANDROID_PAGE_SIZE - 1)) {
-        errno = EINVAL;
-        return MAP_FAILED;
-    }
-    return __mmap2(addr, len, prot, flags, fd, offset / ANDROID_PAGE_SIZE);
-}
-#endif
-
 #if defined(OSF1) && defined(__GNUC__)
 
 /*
@@ -2780,11 +2786,7 @@ static void _PR_InitIOV(void)
     _md_iovector._stat64 = stat;
     _md_iovector._lseek64 = _MD_Unix_lseek64;
 #elif defined(_PR_HAVE_OFF64_T)
-#if defined(IRIX5_3) || defined(ANDROID)
-    /*
-     * Android doesn't have open64.  We pass the O_LARGEFILE flag to open
-     * in _MD_open.
-     */
+#if defined(IRIX5_3)
     _md_iovector._open64 = open;
 #else
     _md_iovector._open64 = open64;
@@ -2879,18 +2881,6 @@ void _PR_UnixInit(void)
     PR_ASSERT(NULL != _pr_Xfe_mon);
 
     _PR_InitIOV();  /* one last hack */
-}
-
-void _PR_UnixCleanup(void)
-{
-    if (_pr_rename_lock) {
-        PR_DestroyLock(_pr_rename_lock);
-        _pr_rename_lock = NULL;
-    }
-    if (_pr_Xfe_mon) {
-        PR_DestroyMonitor(_pr_Xfe_mon);
-        _pr_Xfe_mon = NULL;
-    }
 }
 
 #if !defined(_PR_PTHREADS)
@@ -3012,13 +3002,6 @@ PR_Now(void)
     return s;
 }
 
-#if defined(_MD_INTERVAL_USE_GTOD)
-/*
- * This version of interval times is based on the time of day
- * capability offered by the system. This isn't valid for two reasons:
- * 1) The time of day is neither linear nor montonically increasing
- * 2) The units here are milliseconds. That's not appropriate for our use.
- */
 PRIntervalTime _PR_UNIX_GetInterval()
 {
     struct timeval time;
@@ -3028,35 +3011,12 @@ PRIntervalTime _PR_UNIX_GetInterval()
     ticks = (PRUint32)time.tv_sec * PR_MSEC_PER_SEC;  /* that's in milliseconds */
     ticks += (PRUint32)time.tv_usec / PR_USEC_PER_MSEC;  /* so's that */
     return ticks;
-}  /* _PR_UNIX_GetInterval */
+}  /* _PR_SUNOS_GetInterval */
 
 PRIntervalTime _PR_UNIX_TicksPerSecond()
 {
     return 1000;  /* this needs some work :) */
 }
-#endif
-
-#if defined(HAVE_CLOCK_MONOTONIC)
-PRIntervalTime _PR_UNIX_GetInterval2()
-{
-    struct timespec time;
-    PRIntervalTime ticks;
-
-    if (clock_gettime(CLOCK_MONOTONIC, &time) != 0) {
-        fprintf(stderr, "clock_gettime failed: %d\n", errno);
-        abort();
-    }
-
-    ticks = (PRUint32)time.tv_sec * PR_MSEC_PER_SEC;
-    ticks += (PRUint32)time.tv_nsec / PR_NSEC_PER_MSEC;
-    return ticks;
-}
-
-PRIntervalTime _PR_UNIX_TicksPerSecond2()
-{
-    return 1000;
-}
-#endif
 
 #if !defined(_PR_PTHREADS)
 /*
@@ -3317,7 +3277,7 @@ int _MD_unix_get_nonblocking_connect_error(int osfd)
     } else {
         return ECONNREFUSED;
     }	
-#elif defined(UNIXWARE)
+#elif defined(NCR) || defined(UNIXWARE) || defined(SNI) || defined(NEC)
     /*
      * getsockopt() fails with EPIPE, so use getmsg() instead.
      */

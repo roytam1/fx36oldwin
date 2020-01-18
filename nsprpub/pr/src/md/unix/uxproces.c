@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 
@@ -16,9 +48,7 @@
 #endif
 
 #if defined(DARWIN)
-#if defined(HAVE_CRT_EXTERNS_H)
 #include <crt_externs.h>
-#endif
 #else
 PR_IMPORT_DATA(char **) environ;
 #endif
@@ -28,6 +58,10 @@ PR_IMPORT_DATA(char **) environ;
  */
 #ifndef SA_RESTART
 #define SA_RESTART 0
+#endif
+
+#if defined(VMS)
+static PRLock *_pr_vms_fork_lock = NULL;
 #endif
 
 /*
@@ -142,6 +176,9 @@ ForkAndExec(
     char *const *childEnvp;
     char **newEnvp = NULL;
     int flags;
+#ifdef VMS
+    char VMScurdir[FILENAME_MAX+1] = { '\0' } ;
+#endif	
 
     process = PR_NEW(PRProcess);
     if (!process) {
@@ -155,19 +192,11 @@ ForkAndExec(
 
         if (NULL == childEnvp) {
 #ifdef DARWIN
-#ifdef HAVE_CRT_EXTERNS_H
             childEnvp = *(_NSGetEnviron());
-#else
-            /* _NSGetEnviron() is not available on iOS. */
-            PR_DELETE(process);
-            PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-            return NULL;
-#endif
 #else
             childEnvp = environ;
 #endif
         }
-
         for (nEnv = 0; childEnvp[nEnv]; nEnv++) {
         }
         newEnvp = (char **) PR_MALLOC((nEnv + 2) * sizeof(char *));
@@ -190,9 +219,69 @@ ForkAndExec(
         childEnvp = newEnvp;
     }
 
+#ifdef VMS
+/*
+** Since vfork/exec is implemented VERY differently on OpenVMS, we have to
+** handle the setting up of the standard streams very differently. And since
+** none of this code can ever execute in the context of the child, we have
+** to perform the chdir in the parent so the child is born into the correct
+** directory (and then switch the parent back again).
+*/
+{
+    int decc$set_child_standard_streams(int,int,int);
+    int n, fd_stdin=0, fd_stdout=1, fd_stderr=2;
+
+    /* Set up any standard streams we are given, assuming defaults */
+    if (attr) {
+       if (attr->stdinFd)
+           fd_stdin = attr->stdinFd->secret->md.osfd;
+       if (attr->stdoutFd)
+           fd_stdout = attr->stdoutFd->secret->md.osfd;
+       if (attr->stderrFd)
+           fd_stderr = attr->stderrFd->secret->md.osfd;
+    }
+
+    /*
+    ** Put a lock around anything that isn't going to be thread-safe.
+    */
+    PR_Lock(_pr_vms_fork_lock);
+
+    /*
+    ** Prepare the child's streams. We always do this in case a previous fork
+    ** has left the stream assignments in some non-standard way.
+    */
+    n = decc$set_child_standard_streams(fd_stdin,fd_stdout,fd_stderr);
+    if (n == -1) {
+       PR_SetError(PR_BAD_DESCRIPTOR_ERROR, errno);
+       PR_DELETE(process);
+       if (newEnvp) {
+           PR_DELETE(newEnvp);
+       }
+       PR_Unlock(_pr_vms_fork_lock);
+       return NULL;
+    }
+
+    /* Switch directory if we have to */
+    if (attr) {
+       if (attr->currentDirectory) {
+           if ( (getcwd(VMScurdir,sizeof(VMScurdir)) == NULL) ||
+                (chdir(attr->currentDirectory) < 0) ) {
+               PR_SetError(PR_DIRECTORY_OPEN_ERROR, errno);
+               PR_DELETE(process);
+               if (newEnvp) {
+                   PR_DELETE(newEnvp);
+               }
+               PR_Unlock(_pr_vms_fork_lock);
+               return NULL;
+           }
+       }
+    }
+}
+#endif /* VMS */
+
 #ifdef AIX
     process->md.pid = (*pr_wp.forkptr)();
-#elif defined(NTO) || defined(SYMBIAN)
+#elif defined(NTO)
     /*
      * fork() & exec() does not work in a multithreaded process.
      * Use spawn() instead.
@@ -223,12 +312,7 @@ ForkAndExec(
             PR_ASSERT(attr->currentDirectory == NULL);  /* not implemented */
         }
 
-#ifdef SYMBIAN
-        /* In Symbian OS, we use posix_spawn instead of fork() and exec() */
-        posix_spawn(&(process->md.pid), path, NULL, NULL, argv, childEnvp);
-#else
         process->md.pid = spawn(path, 3, fd_map, NULL, argv, childEnvp);
-#endif
 
         if (fd_map[0] != 0)
             close(fd_map[0]);
@@ -255,7 +339,10 @@ ForkAndExec(
          * the parent process's standard I/O data structures.
          */
 
-#if !defined(NTO) && !defined(SYMBIAN)
+#if !defined(NTO)
+#ifdef VMS
+       /* OpenVMS has already handled all this above */
+#else
         if (attr) {
             /* the osfd's to redirect stdin, stdout, and stderr to */
             int in_osfd = -1, out_osfd = -1, err_osfd = -1;
@@ -309,6 +396,7 @@ ForkAndExec(
                 }
             }
         }
+#endif /* !VMS */
 
         if (childEnvp) {
             (void)execve(path, argv, childEnvp);
@@ -317,13 +405,36 @@ ForkAndExec(
             (void)execv(path, argv);
         }
         /* Whoops! It returned. That's a bad sign. */
+#ifdef VMS
+       /*
+       ** On OpenVMS we are still in the context of the parent, and so we
+       ** can (and should!) perform normal error handling.
+       */
+       PR_SetError(PR_UNKNOWN_ERROR, errno);
+       PR_DELETE(process);
+       if (newEnvp) {
+           PR_DELETE(newEnvp);
+       }
+       if (VMScurdir[0] != '\0')
+           chdir(VMScurdir);
+       PR_Unlock(_pr_vms_fork_lock);
+       return NULL;
+#else
         _exit(1);
+#endif /* VMS */
 #endif /* !NTO */
     }
 
     if (newEnvp) {
         PR_DELETE(newEnvp);
     }
+#ifdef VMS
+    /* If we switched directories, then remember to switch back */
+    if (VMScurdir[0] != '\0') {
+       chdir(VMScurdir); /* can't do much if it fails */
+    }
+    PR_Unlock(_pr_vms_fork_lock);
+#endif /* VMS */
 
 #if defined(_PR_NATIVE_THREADS)
     PR_Lock(pr_wp.ml);
@@ -711,6 +822,11 @@ static PRStatus _MD_InitProcesses(void)
     int rv;
     int flags;
 #endif
+#ifdef SUNOS4
+#define _PR_NBIO_FLAG FNDELAY
+#else
+#define _PR_NBIO_FLAG O_NONBLOCK
+#endif
 
 #ifdef AIX
     {
@@ -726,6 +842,11 @@ static PRStatus _MD_InitProcesses(void)
     pr_wp.ml = PR_NewLock();
     PR_ASSERT(NULL != pr_wp.ml);
 
+#if defined(VMS)
+    _pr_vms_fork_lock = PR_NewLock();
+    PR_ASSERT(NULL != _pr_vms_fork_lock);
+#endif
+
 #if defined(_PR_NATIVE_THREADS)
     pr_wp.numProcs = 0;
     pr_wp.cv = PR_NewCondVar(pr_wp.ml);
@@ -734,9 +855,9 @@ static PRStatus _MD_InitProcesses(void)
     rv = pipe(pr_wp.pipefd);
     PR_ASSERT(0 == rv);
     flags = fcntl(pr_wp.pipefd[0], F_GETFL, 0);
-    fcntl(pr_wp.pipefd[0], F_SETFL, flags | O_NONBLOCK);
+    fcntl(pr_wp.pipefd[0], F_SETFL, flags | _PR_NBIO_FLAG);
     flags = fcntl(pr_wp.pipefd[1], F_GETFL, 0);
-    fcntl(pr_wp.pipefd[1], F_SETFL, flags | O_NONBLOCK);
+    fcntl(pr_wp.pipefd[1], F_SETFL, flags | _PR_NBIO_FLAG);
 
 #ifndef _PR_SHARE_CLONES
     pr_InstallSigchldHandler();
@@ -859,11 +980,6 @@ PRStatus _MD_KillUnixProcess(PRProcess *process)
     PRErrorCode prerror;
     PRInt32 oserror;
 
-#ifdef SYMBIAN
-    /* In Symbian OS, we can not kill other process with Open C */
-    PR_SetError(PR_OPERATION_NOT_SUPPORTED_ERROR, oserror);
-    return PR_FAILURE;
-#else
     if (kill(process->md.pid, SIGKILL) == 0) {
 	return PR_SUCCESS;
     }
@@ -881,5 +997,4 @@ PRStatus _MD_KillUnixProcess(PRProcess *process)
     }
     PR_SetError(prerror, oserror);
     return PR_FAILURE;
-#endif
 }  /* _MD_KillUnixProcess */

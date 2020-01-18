@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Davide Bresolin <davide@teamos2.it>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * os2misc.c
@@ -511,109 +544,45 @@ _PR_MD_WAKEUP_CPUS( void )
     return;
 }    
 
+
 /*
  **********************************************************************
  *
- * Memory-mapped files
- *
- * A credible emulation of memory-mapped i/o on OS/2 would require
- * an exception-handler on each thread that might access the mapped
- * memory.  In the Mozilla environment, that would be impractical.
- * Instead, the following simulates those modes which don't modify
- * the mapped file.  It reads the entire mapped file segment at once
- * when MemMap is called, and frees it on MemUnmap.  CreateFileMap
- * only does sanity-checks, while CloseFileMap does almost nothing.
+ * Memory-mapped files are not supported on OS/2 (or Win16).
  *
  **********************************************************************
  */
 
 PRStatus _MD_CreateFileMap(PRFileMap *fmap, PRInt64 size)
 {
-    PRFileInfo64 info;
-
-    /* assert on PR_PROT_READWRITE which modifies the underlying file */
-    PR_ASSERT(fmap->prot == PR_PROT_READONLY ||
-              fmap->prot == PR_PROT_WRITECOPY);
-    if (fmap->prot != PR_PROT_READONLY &&
-        fmap->prot != PR_PROT_WRITECOPY) {
-        PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-        return PR_FAILURE;
-    }
-    if (PR_GetOpenFileInfo64(fmap->fd, &info) == PR_FAILURE) {
-        return PR_FAILURE;
-    }
-    /* reject zero-byte mappings & zero-byte files */
-    if (!size || !info.size) {
-        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-        return PR_FAILURE;
-    }
-    /* file size rounded up to the next page boundary */
-    fmap->md.maxExtent = (info.size + 0xfff) & ~(0xfff);
-
-    return PR_SUCCESS;
+    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+    return PR_FAILURE;
 }
 
 PRInt32 _MD_GetMemMapAlignment(void)
 {
-    /* OS/2 pages are 4k */
-    return 0x1000;
+    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+    return -1;
 }
 
-void * _MD_MemMap(PRFileMap *fmap, PROffset64 offset, PRUint32 len)
+void * _MD_MemMap(
+    PRFileMap *fmap,
+    PROffset64 offset,
+    PRUint32 len)
 {
-    PRUint32 rv;
-    void *addr;
-
-    /* prevent mappings beyond EOF + remainder of page */
-    if (offset + len > fmap->md.maxExtent) {
-        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-        return NULL;
-    }
-    if (PR_Seek64(fmap->fd, offset, PR_SEEK_SET) == -1) {
-        return NULL;
-    }
-    /* try for high memory, fall back to low memory if hi-mem fails */
-    rv = DosAllocMem(&addr, len, OBJ_ANY | PAG_COMMIT | PAG_READ | PAG_WRITE);
-    if (rv) {
-        rv = DosAllocMem(&addr, len, PAG_COMMIT | PAG_READ | PAG_WRITE);
-        if (rv) {
-            PR_SetError(PR_OUT_OF_MEMORY_ERROR, rv);
-            return NULL;
-        }
-    }
-    if (PR_Read(fmap->fd, addr, len) == -1) {
-        DosFreeMem(addr);
-        return NULL;
-    }
-    /* don't permit writes if readonly */
-    if (fmap->prot == PR_PROT_READONLY) {
-        rv = DosSetMem(addr, len, PAG_READ);
-        if (rv) {
-            DosFreeMem(addr);
-            PR_SetError(PR_UNKNOWN_ERROR, rv);
-            return NULL;
-        }
-    }
-    return addr;
+    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+    return NULL;
 }
 
 PRStatus _MD_MemUnmap(void *addr, PRUint32 len)
 {
-    PRUint32 rv;
-
-    /* we just have to trust that addr & len are those used by MemMap */
-    rv = DosFreeMem(addr);
-    if (rv) {
-        PR_SetError(PR_INVALID_ARGUMENT_ERROR, rv);
-        return PR_FAILURE;
-    }
-    return PR_SUCCESS;
+    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+    return PR_FAILURE;
 }
 
 PRStatus _MD_CloseFileMap(PRFileMap *fmap)
 {
-    /* nothing to do except free the PRFileMap struct */
-    PR_Free(fmap);
-    return PR_SUCCESS;
+    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
+    return PR_FAILURE;
 }
 
