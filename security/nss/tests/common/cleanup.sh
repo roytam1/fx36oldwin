@@ -14,6 +14,9 @@ if [ -z "${CLEANUP}" -o "${CLEANUP}" = "${SCRIPTNAME}" ]; then
     echo "HOST=${HOST}"
     echo "DOMSUF=${DOMSUF}"
     echo "BUILD_OPT=${BUILD_OPT}"
+    if [ "${OS_ARCH}" = "Linux" ]; then
+        echo "USE_X32=${USE_X32}"
+    fi
     echo "USE_64=${USE_64}"
     echo "NSS_CYCLES=\"${NSS_CYCLES}\""
     echo "NSS_TESTS=\"${NSS_TESTS}\""
@@ -29,10 +32,10 @@ if [ -z "${CLEANUP}" -o "${CLEANUP}" = "${SCRIPTNAME}" ]; then
     echo "--------------"
     LINES_CNT=$(cat ${RESULTS} | grep ">Passed<" | wc -l | sed s/\ *//)
     echo "Passed:             ${LINES_CNT}"
-    LINES_CNT=$(cat ${RESULTS} | grep ">Failed<" | wc -l | sed s/\ *//)
-    echo "Failed:             ${LINES_CNT}"
-    LINES_CNT=$(cat ${RESULTS} | grep ">Failed Core<" | wc -l | sed s/\ *//)
-    echo "Failed with core:   ${LINES_CNT}"
+    FAILED_CNT=$(cat ${RESULTS} | grep ">Failed<" | wc -l | sed s/\ *//)
+    echo "Failed:             ${FAILED_CNT}"
+    CORE_CNT=$(cat ${RESULTS} | grep ">Failed Core<" | wc -l | sed s/\ *//)
+    echo "Failed with core:   ${CORE_CNT}"
     LINES_CNT=$(cat ${RESULTS} | grep ">Unknown<" | wc -l | sed s/\ *//)
     echo "Unknown status:     ${LINES_CNT}"
     if [ ${LINES_CNT} -gt 0 ]; then
@@ -43,4 +46,8 @@ if [ -z "${CLEANUP}" -o "${CLEANUP}" = "${SCRIPTNAME}" ]; then
     html "END_OF_TEST<BR>"
     html "</BODY></HTML>" 
     rm -f ${TEMPFILES} 2>/dev/null
+    if [ ${FAILED_CNT} -gt 0 ]; then
+        exit 1
+    fi
+
 fi

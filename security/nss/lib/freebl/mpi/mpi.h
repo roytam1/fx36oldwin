@@ -56,11 +56,11 @@ typedef int               mp_err;
 #error "USHRT_MAX not defined"
 #endif
 
-#if defined(ULONG_LONG_MAX)			/* GCC, HPUX */
-#define MP_ULONG_LONG_MAX ULONG_LONG_MAX
-#elif defined(ULLONG_MAX)			/* Solaris */
+#if defined(ULLONG_MAX)				/* C99, Solaris */
 #define MP_ULONG_LONG_MAX ULLONG_MAX
 /* MP_ULONG_LONG_MAX was defined to be ULLONG_MAX */
+#elif defined(ULONG_LONG_MAX)			/* HPUX */
+#define MP_ULONG_LONG_MAX ULONG_LONG_MAX
 #elif defined(ULONGLONG_MAX)			/* IRIX, AIX */
 #define MP_ULONG_LONG_MAX ULONGLONG_MAX
 #endif
@@ -125,7 +125,8 @@ typedef          int      mp_sword;
 #define MP_WORD_MAX       UINT_MAX
 #endif
 
-#define MP_DIGIT_BIT      (CHAR_BIT*sizeof(mp_digit))
+#define MP_DIGIT_SIZE sizeof(mp_digit)
+#define MP_DIGIT_BIT (CHAR_BIT * MP_DIGIT_SIZE)
 #define MP_WORD_BIT       (CHAR_BIT*sizeof(mp_word))
 #define MP_RADIX          (1+(mp_word)MP_DIGIT_MAX)
 
@@ -258,7 +259,7 @@ const  char  *mp_strerror(mp_err ec);
 
 /* Octet string conversion functions */
 mp_err mp_read_unsigned_octets(mp_int *mp, const unsigned char *str, mp_size len);
-int    mp_unsigned_octet_size(const mp_int *mp);
+unsigned int mp_unsigned_octet_size(const mp_int *mp);
 mp_err mp_to_unsigned_octets(const mp_int *mp, unsigned char *str, mp_size maxlen);
 mp_err mp_to_signed_octets(const mp_int *mp, unsigned char *str, mp_size maxlen);
 mp_err mp_to_fixlen_octets(const mp_int *mp, unsigned char *str, mp_size len);

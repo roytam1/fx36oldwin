@@ -271,3 +271,15 @@ SECITEM_ZfreeArray;
 ;+    local:
 ;+       *;
 ;+};
+;+NSSUTIL_3.17.1 {         # NSS Utilities 3.17.1 release
+;+    global:
+_SGN_VerifyPKCS1DigestInfo;
+;+    local:
+;+       *;
+;+};
+;+NSSUTIL_3.21 {         # NSS Utilities 3.21 release
+;+    global:
+NSSUTIL_ArgParseModuleSpecEx;
+;+    local:
+;+       *;
+;+};

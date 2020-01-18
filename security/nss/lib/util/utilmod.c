@@ -21,8 +21,36 @@
 #include "secport.h"
 #include "utilpars.h" 
 #include "secerr.h"
+
 #if defined (_WIN32)
 #include <io.h>
+#endif
+#ifdef XP_UNIX
+#include <unistd.h>
+#endif
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+#if defined (_WIN32)
+#define os_open _open
+#define os_fdopen _fdopen
+#define os_stat _stat
+#define os_truncate_open_flags _O_CREAT|_O_RDWR|_O_TRUNC
+#define os_append_open_flags _O_CREAT|_O_RDWR|_O_APPEND
+#define os_open_permissions_type int
+#define os_open_permissions_default _S_IREAD | _S_IWRITE
+#define os_stat_type struct _stat
+#else
+#define os_open open
+#define os_fdopen fdopen
+#define os_stat stat
+#define os_truncate_open_flags O_CREAT|O_RDWR|O_TRUNC
+#define os_append_open_flags O_CREAT|O_RDWR|O_APPEND
+#define os_open_permissions_type mode_t
+#define os_open_permissions_default 0600
+#define os_stat_type struct stat
 #endif
 
 /****************************************************************
@@ -47,14 +75,15 @@
 
 /*
  * Smart string cat functions. Automatically manage the memory.
- * The first parameter is the source string. If it's null, we 
+ * The first parameter is the destination string. If it's null, we 
  * allocate memory for it. If it's not, we reallocate memory
  * so the the concanenated string fits.
  */
 static char *
 nssutil_DupnCat(char *baseString, const char *str, int str_len)
 {
-    int len = (baseString ? PORT_Strlen(baseString) : 0) + 1;
+    int baseStringLen = baseString ? PORT_Strlen(baseString) : 0;
+    int len = baseStringLen + 1;
     char *newString;
 
     len += str_len;
@@ -63,8 +92,9 @@ nssutil_DupnCat(char *baseString, const char *str, int str_len)
 	PORT_Free(baseString);
 	return NULL;
     }
-    if (baseString == NULL) *newString = 0;
-    return PORT_Strncat(newString,str, str_len);
+    PORT_Memcpy(&newString[baseStringLen], str, str_len);
+    newString[len - 1] = 0;
+    return newString;
 }
 
 /* Same as nssutil_DupnCat except it concatenates the full string, not a
@@ -132,27 +162,26 @@ char *_NSSUTIL_GetOldSecmodName(const char *dbname,const char *filename)
     return file;
 }
 
-static SECStatus nssutil_AddSecmodDB(const char *appName, 
-		   const char *filename, const char *dbname, 
-		   char *module, PRBool rw);
+static SECStatus nssutil_AddSecmodDBEntry(const char *appName,
+                                          const char *filename,
+                                          const char *dbname,
+                                          char *module, PRBool rw);
 
-#ifdef XP_UNIX
-#include <unistd.h>
-#endif
-#include <fcntl.h>
+enum lfopen_mode { lfopen_truncate, lfopen_append };
 
-/* same as fopen, except it doesn't use umask, but explicit */
 FILE *
-lfopen(const char *name, const char *mode, int flags)
+lfopen(const char *name, enum lfopen_mode om, os_open_permissions_type open_perms)
 {
     int fd;
     FILE *file;
 
-    fd = open(name, flags, 0600);
+    fd = os_open(name,
+                 (om == lfopen_truncate) ? os_truncate_open_flags : os_append_open_flags,
+                 open_perms);
     if (fd < 0) {
 	return NULL;
     }
-    file = fdopen(fd, mode);
+    file = os_fdopen(fd, (om == lfopen_truncate) ? "w+" : "a+");
     if (!file) {
 	close(fd);
     }
@@ -416,7 +445,7 @@ loser:
 	fclose(fd);
     } else if (!failed && rw) {
 	/* update our internal module */
-	nssutil_AddSecmodDB(appName,filename,dbname,moduleList[0],rw);
+	nssutil_AddSecmodDBEntry(appName, filename, dbname, moduleList[0], rw);
     }
     return moduleList;
 }
@@ -437,11 +466,15 @@ nssutil_ReleaseSecmodDBData(const char *appName,
  * Delete a module from the Data Base
  */
 static SECStatus
-nssutil_DeleteSecmodDB(const char *appName, 
-		      const char *filename, const char *dbname, 
-		      char *args, PRBool rw)
+nssutil_DeleteSecmodDBEntry(const char *appName,
+                            const char *filename,
+                            const char *dbname,
+                            char *args,
+                            PRBool rw)
 {
     /* SHDB_FIXME implement */
+    os_stat_type stat_existing;
+    os_open_permissions_type file_mode;
     FILE *fd = NULL;
     FILE *fd2 = NULL;
     char line[MAX_LINE_LENGTH];
@@ -449,7 +482,7 @@ nssutil_DeleteSecmodDB(const char *appName,
     char *block = NULL;
     char *name = NULL;
     char *lib = NULL;
-    int name_len, lib_len;
+    int name_len = 0, lib_len = 0;
     PRBool skip = PR_FALSE;
     PRBool found = PR_FALSE;
 
@@ -467,10 +500,19 @@ nssutil_DeleteSecmodDB(const char *appName,
     if (dbname2 == NULL) goto loser;
     dbname2[strlen(dbname)-1]++;
 
+    /* get the permissions of the existing file, or use the default */
+    if (!os_stat(dbname, &stat_existing)) {
+	file_mode = stat_existing.st_mode;
+    } else {
+	file_mode = os_open_permissions_default;
+    }
+
     /* do we really want to use streams here */
     fd = fopen(dbname, "r");
     if (fd == NULL) goto loser;
-    fd2 = lfopen(dbname2, "w+", O_CREAT|O_RDWR|O_TRUNC);
+
+    fd2 = lfopen(dbname2, lfopen_truncate, file_mode);
+
     if (fd2 == NULL) goto loser;
 
     name = NSSUTIL_ArgGetParamValue("name",args);
@@ -566,10 +608,12 @@ loser:
  * Add a module to the Data base 
  */
 static SECStatus
-nssutil_AddSecmodDB(const char *appName, 
-		   const char *filename, const char *dbname, 
-		   char *module, PRBool rw)
+nssutil_AddSecmodDBEntry(const char *appName,
+                        const char *filename, const char *dbname,
+                         char *module, PRBool rw)
 {
+    os_stat_type stat_existing;
+    os_open_permissions_type file_mode;
     FILE *fd = NULL;
     char *block = NULL;
     PRBool libFound = PR_FALSE;
@@ -586,10 +630,16 @@ nssutil_AddSecmodDB(const char *appName,
     }
 
     /* remove the previous version if it exists */
-    (void) nssutil_DeleteSecmodDB(appName, filename, 
-				  dbname, module, rw);
+    (void) nssutil_DeleteSecmodDBEntry(appName, filename, dbname, module, rw);
 
-    fd = lfopen(dbname, "a+", O_CREAT|O_RDWR|O_APPEND);
+    /* get the permissions of the existing file, or use the default */
+    if (!os_stat(dbname, &stat_existing)) {
+	file_mode = stat_existing.st_mode;
+    } else {
+	file_mode = os_open_permissions_default;
+    }
+
+    fd = lfopen(dbname, lfopen_append, file_mode);
     if (fd == NULL) {
 	return SECFailure;
     }
@@ -665,16 +715,19 @@ NSSUTIL_DoModuleDBFunction(unsigned long function,char *parameters, void *args)
 				     secmod,(char *)parameters,rw);
         break;
     case SECMOD_MODULE_DB_FUNCTION_ADD:
-        rvstr = (nssutil_AddSecmodDB(appName,filename,
-		secmod,(char *)args,rw) == SECSuccess) ? &success: NULL;
+        rvstr = (nssutil_AddSecmodDBEntry(appName, filename,
+                                          secmod, (char *)args, rw)
+                 == SECSuccess) ? &success: NULL;
         break;
     case SECMOD_MODULE_DB_FUNCTION_DEL:
-        rvstr = (nssutil_DeleteSecmodDB(appName,filename,
-		secmod,(char *)args,rw) == SECSuccess) ? &success: NULL;
+        rvstr = (nssutil_DeleteSecmodDBEntry(appName, filename,
+                                             secmod, (char *)args, rw)
+                 == SECSuccess) ? &success: NULL;
         break;
     case SECMOD_MODULE_DB_FUNCTION_RELEASE:
-        rvstr = (nssutil_ReleaseSecmodDBData(appName,filename,
-		secmod, (char **)args,rw) == SECSuccess) ? &success: NULL;
+        rvstr = (nssutil_ReleaseSecmodDBData(appName, filename,
+                                             secmod, (char **)args, rw)
+                 == SECSuccess) ? &success: NULL;
         break;
     }
 done:

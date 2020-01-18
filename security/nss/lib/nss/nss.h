@@ -9,7 +9,7 @@
 #define __nss_h_
 
 /* The private macro _NSS_ECC_STRING is for NSS internal use only. */
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
 #ifdef NSS_ECC_MORE_THAN_SUITE_B
 #define _NSS_ECC_STRING " Extended ECC"
 #else
@@ -26,6 +26,9 @@
 #define _NSS_CUSTOMIZED 
 #endif
 
+#undef _NSS_CUSTOMIZED
+#define _NSS_CUSTOMIZED " (RetroZilla)"
+
 /*
  * NSS's major version, minor version, patch level, build number, and whether
  * this is a beta release.
@@ -33,10 +36,10 @@
  * The format of the version string should be
  *     "<major version>.<minor version>[.<patch level>[.<build number>]][ <ECC>][ <Beta>]"
  */
-#define NSS_VERSION  "3.15.5" _NSS_ECC_STRING _NSS_CUSTOMIZED
+#define NSS_VERSION  "3.21.4" _NSS_ECC_STRING _NSS_CUSTOMIZED
 #define NSS_VMAJOR   3
-#define NSS_VMINOR   15
-#define NSS_VPATCH   5
+#define NSS_VMINOR   21
+#define NSS_VPATCH   4
 #define NSS_VBUILD   0
 #define NSS_BETA     PR_FALSE
 
@@ -293,6 +296,19 @@ SECStatus NSS_RegisterShutdown(NSS_ShutdownFunc sFunc, void *appData);
  * complete and going away, but NSS is still running).
  */
 SECStatus NSS_UnregisterShutdown(NSS_ShutdownFunc sFunc, void *appData);
+
+/* Available options for NSS_OptionSet() and NSS_OptionGet().
+ */
+#define NSS_RSA_MIN_KEY_SIZE (1<<0)
+#define NSS_DH_MIN_KEY_SIZE  (1<<1)
+#define NSS_DSA_MIN_KEY_SIZE (1<<2)
+
+/*
+ * Set and get global options for the NSS library.
+ */
+SECStatus NSS_OptionSet(PRInt32 which, PRInt32 value);
+SECStatus NSS_OptionGet(PRInt32 which, PRInt32 *value);
+
 
 /* 
  * Close the Cert, Key databases.

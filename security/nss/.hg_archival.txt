@@ -1,4 +1,0 @@
-repo: 9949429068caa6bb8827a8ceeaa7c605d722f47f
-node: ceb3666f7a6433898e20bf64a1ec1cfbd5ca666a
-branch: NSS_3_15_5
-tag: NSS_3_15_5_RTM

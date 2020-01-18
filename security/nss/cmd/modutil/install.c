@@ -120,9 +120,10 @@ typedef struct StringNode_str {
 StringNode* StringNode_new()
 {
 	StringNode* new_this;
-	new_this = (StringNode*)malloc(sizeof(StringNode));
-  new_this->str=NULL;
-  new_this->next=NULL;
+	new_this = (StringNode*)PR_Malloc(sizeof(StringNode));
+	PORT_Assert(new_this != NULL);
+	new_this->str = NULL;
+	new_this->next = NULL;
 	return new_this;
 }
 
@@ -777,7 +778,7 @@ loser:
 	if(tempname) {
 		PRFileInfo info;
 		if(PR_GetFileInfo(tempname, &info) == PR_SUCCESS) {
-			if((info.type == PR_FILE_DIRECTORY)) {
+			if(info.type == PR_FILE_DIRECTORY) {
 				/* Recursively remove temporary directory */
 				if(rm_dash_r(tempname)) {
 					error(PK11_INSTALL_REMOVE_DIR,
@@ -832,7 +833,10 @@ rm_dash_r (char *path)
         /* Recursively delete all entries in the directory */
         while((entry = PR_ReadDir(dir, PR_SKIP_BOTH)) != NULL) {
             sprintf(filename, "%s/%s", path, entry->name);
-            if(rm_dash_r(filename)) return -1;
+            if(rm_dash_r(filename)) {
+                PR_CloseDir(dir);
+                return -1;
+            }
         }
 
         if(PR_CloseDir(dir) != PR_SUCCESS) {

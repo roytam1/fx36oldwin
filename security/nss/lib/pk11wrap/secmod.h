@@ -28,6 +28,7 @@
 #define PUBLIC_MECH_SHA512_FLAG      0x00008000ul
 #define PUBLIC_MECH_CAMELLIA_FLAG    0x00010000ul
 #define PUBLIC_MECH_SEED_FLAG        0x00020000ul
+#define PUBLIC_MECH_ECC_FLAG         0x00040000ul
 
 #define PUBLIC_MECH_RANDOM_FLAG      0x08000000ul
 #define PUBLIC_MECH_FRIENDLY_FLAG    0x10000000ul
@@ -63,6 +64,9 @@ SECStatus SECMOD_UnloadUserModule(SECMODModule *mod);
 
 SECMODModule * SECMOD_CreateModule(const char *lib, const char *name,
 					const char *param, const char *nss);
+SECMODModule * SECMOD_CreateModuleEx(const char *lib, const char *name,
+					const char *param, const char *nss,
+					const char *config);
 /*
  * After a fork(), PKCS #11 says we need to call C_Initialize again in
  * the child before we can use the module. This function causes this 
@@ -138,6 +142,7 @@ PRBool SECMOD_GetDefaultModDBFlag(SECMODModule *mod);
 /* Functions used to convert between internal & public representation
  * of Mechanism Flags and Cipher Enable Flags */
 extern unsigned long SECMOD_PubMechFlagstoInternal(unsigned long publicFlags);
+extern unsigned long SECMOD_InternaltoPubMechFlags(unsigned long internalFlags);
 extern unsigned long SECMOD_PubCipherFlagstoInternal(unsigned long publicFlags);
 
 PRBool SECMOD_HasRemovableSlots(SECMODModule *mod);

@@ -16,7 +16,7 @@
 #include "ec.h"
 #include "ecl.h"
 
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
 
 /* 
  * Returns true if pointP is the point at infinity, false otherwise
@@ -192,7 +192,7 @@ cleanup:
 
     return rv;
 }
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
 /* Generates a new EC key pair. The private key is a supplied
  * value and the public key is the result of performing a scalar 
@@ -203,7 +203,7 @@ ec_NewKey(ECParams *ecParams, ECPrivateKey **privKey,
     const unsigned char *privKeyBytes, int privKeyLen)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     PLArenaPool *arena;
     ECPrivateKey *key;
     mp_int k;
@@ -215,7 +215,8 @@ ec_NewKey(ECParams *ecParams, ECPrivateKey **privKey,
 #endif
     MP_DIGITS(&k) = 0;
 
-    if (!ecParams || !privKey || !privKeyBytes || (privKeyLen < 0)) {
+    if (!ecParams || ecParams->name == ECCurve_noName ||
+        !privKey || !privKeyBytes || privKeyLen <= 0) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
@@ -301,7 +302,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
     return rv;
 
@@ -317,15 +318,15 @@ EC_NewKeyFromSeed(ECParams *ecParams, ECPrivateKey **privKey,
     const unsigned char *seed, int seedlen)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     rv = ec_NewKey(ecParams, privKey, seed, seedlen);
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
     return rv;
 }
 
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
 /* Generate a random private key using the algorithm A.4.1 of ANSI X9.62,
  * modified a la FIPS 186-2 Change Notice 1 to eliminate the bias in the
  * random number generator.
@@ -381,7 +382,7 @@ cleanup:
     }
     return privKeyBytes;
 }
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
 /* Generates a new EC key pair. The private key is a random value and
  * the public key is the result of performing a scalar point multiplication
@@ -391,11 +392,11 @@ SECStatus
 EC_NewKey(ECParams *ecParams, ECPrivateKey **privKey)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     int len;
     unsigned char *privKeyBytes = NULL;
 
-    if (!ecParams) {
+    if (!ecParams || ecParams->name == ECCurve_noName || !privKey) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
@@ -416,7 +417,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
     
     return rv;
 }
@@ -430,14 +431,15 @@ cleanup:
 SECStatus 
 EC_ValidatePublicKey(ECParams *ecParams, SECItem *publicValue)
 {
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     mp_int Px, Py;
     ECGroup *group = NULL;
     SECStatus rv = SECFailure;
     mp_err err = MP_OKAY;
     int len;
 
-    if (!ecParams || !publicValue) {
+    if (!ecParams || ecParams->name == ECCurve_noName ||
+        !publicValue || !publicValue->len) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
@@ -506,7 +508,7 @@ cleanup:
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
     return SECFailure;
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 }
 
 /* 
@@ -527,7 +529,7 @@ ECDH_Derive(SECItem  *publicValue,
             SECItem  *derivedSecret)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     unsigned int len = 0;
     SECItem pointQ = {siBuffer, NULL, 0};
     mp_int k; /* to hold the private value */
@@ -537,9 +539,19 @@ ECDH_Derive(SECItem  *publicValue,
     int i;
 #endif
 
-    if (!publicValue || !ecParams || !privateValue || 
-	!derivedSecret) {
+    if (!publicValue || !publicValue->len ||
+        !ecParams || ecParams->name == ECCurve_noName ||
+        !privateValue || !privateValue->len || !derivedSecret) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    /*
+     * We fail if the public value is the point at infinity, since
+     * this produces predictable results.
+     */
+    if (ec_point_at_infinity(publicValue)) {
+	PORT_SetError(SEC_ERROR_BAD_KEY);
 	return SECFailure;
     }
 
@@ -596,7 +608,7 @@ cleanup:
     }
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
     return rv;
 }
@@ -610,7 +622,7 @@ ECDSA_SignDigestWithSeed(ECPrivateKey *key, SECItem *signature,
     const SECItem *digest, const unsigned char *kb, const int kblen)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     mp_int x1;
     mp_int d, k;     /* private key, random integer */
     mp_int r, s;     /* tuple (r, s) is the signature */
@@ -822,7 +834,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
    return rv;
 }
@@ -835,7 +847,7 @@ SECStatus
 ECDSA_SignDigest(ECPrivateKey *key, SECItem *signature, const SECItem *digest)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     int len;
     unsigned char *kBytes= NULL;
 
@@ -863,20 +875,25 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
     return rv;
 }
 
 /*
 ** Checks the signature on the given digest using the key provided.
+**
+** The key argument must represent a valid EC public key (a point on
+** the relevant curve).  If it is not a valid point, then the behavior
+** of this function is undefined.  In cases where a public key might
+** not be valid, use EC_ValidatePublicKey to check.
 */
 SECStatus 
 ECDSA_VerifyDigest(ECPublicKey *key, const SECItem *signature, 
                  const SECItem *digest)
 {
     SECStatus rv = SECFailure;
-#ifdef NSS_ENABLE_ECC
+#ifndef NSS_DISABLE_ECC
     mp_int r_, s_;           /* tuple (r', s') is received signature) */
     mp_int c, u1, u2, v;     /* intermediate values used in verification */
     mp_int x1;
@@ -1073,7 +1090,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_ENABLE_ECC */
+#endif /* NSS_DISABLE_ECC */
 
     return rv;
 }

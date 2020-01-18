@@ -79,14 +79,14 @@ nss_cmstype_shutdown(void *appData, void *reserved)
 static PLHashNumber
 nss_cmstype_hash_key(const void *key)
 {
-   return (PLHashNumber) key;
+   return (PLHashNumber)((char *)key - (char *)NULL);
 }
 
 static PRIntn
 nss_cmstype_compare_keys(const void *v1, const void *v2)
 {
-   PLHashNumber value1 = (PLHashNumber) v1;
-   PLHashNumber value2 = (PLHashNumber) v2;
+   PLHashNumber value1 = nss_cmstype_hash_key(v1);
+   PLHashNumber value2 = nss_cmstype_hash_key(v2);
 
    return (value1 == value2);
 }
@@ -240,7 +240,7 @@ NSS_CMSGenericWrapperData_Destroy(SECOidTag type, NSSCMSGenericWrapperData *gd)
 {
     const nsscmstypeInfo *typeInfo = nss_cmstype_lookup(type);
 
-    if (typeInfo && typeInfo->destroy) {
+    if (typeInfo && typeInfo->destroy && (gd != NULL)) {
 	(*typeInfo->destroy)(gd);
     }
     

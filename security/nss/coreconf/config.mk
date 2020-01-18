@@ -146,10 +146,10 @@ endif
 # [16.0] Global environ ment defines
 #######################################################################
 
-ifdef NSS_ENABLE_ECC
-DEFINES += -DNSS_ENABLE_ECC
+ifdef NSS_DISABLE_ECC
+DEFINES += -DNSS_DISABLE_ECC
 endif
-
+ 
 ifdef NSS_ECC_MORE_THAN_SUITE_B
 DEFINES += -DNSS_ECC_MORE_THAN_SUITE_B
 endif
@@ -166,6 +166,10 @@ ifdef NSS_DISABLE_DBM
 DEFINES += -DNSS_DISABLE_DBM
 endif
 
+ifdef NSS_PKIX_NO_LDAP
+DEFINES += -DNSS_PKIX_NO_LDAP
+endif
+
 # Avoid building object leak test code for optimized library
 ifndef BUILD_OPT
 ifdef PKIX_OBJECT_LEAK_TEST
@@ -180,4 +184,13 @@ DEFINES += -DUSE_UTIL_DIRECTLY
 USE_UTIL_DIRECTLY = 1
 
 # Build with NO_NSPR_10_SUPPORT to avoid using obsolete NSPR features
-DEFINES += -DNO_NSPR_10_SUPPORT
+#DEFINES += -DNO_NSPR_10_SUPPORT
+
+# Hide old, deprecated, TLS cipher suite names when building NSS
+DEFINES += -DSSL_DISABLE_DEPRECATED_CIPHER_SUITE_NAMES
+
+# build with NO_PKCS11_BYPASS by default
+ifndef NSS_PKCS11_BYPASS
+DEFINES += -DNO_PKCS11_BYPASS
+NSS_NO_PKCS11_BYPASS = 1
+endif

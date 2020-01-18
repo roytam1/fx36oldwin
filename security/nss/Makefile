@@ -26,7 +26,9 @@ include $(CORE_DEPTH)/coreconf/config.mk
 # (4) Include "local" platform-dependent assignments (OPTIONAL).      #
 #######################################################################
 
-
+ifdef NSS_DISABLE_GTESTS
+DIRS := $(filter-out external_tests,$(DIRS))
+endif
 
 #######################################################################
 # (5) Execute "global" rules. (OPTIONAL)                              #
@@ -56,10 +58,17 @@ NSPR_CONFIGURE = $(CORE_DEPTH)/../nspr/configure
 #
 
 ifeq ($(OS_TARGET),Android)
-NSPR_CONFIGURE_OPTS += --with-android-ndk=$(ANDROID_NDK) --target=arm-linux-androideabi --with-android-version=$(OS_TARGET_RELEASE)
+NSPR_CONFIGURE_OPTS += --with-android-ndk=$(ANDROID_NDK) \
+                       --target=$(ANDROID_PREFIX) \
+                       --with-android-version=$(OS_TARGET_RELEASE) \
+                       --with-android-toolchain=$(ANDROID_TOOLCHAIN) \
+                       --with-android-platform=$(ANDROID_SYSROOT)
 endif
 ifdef BUILD_OPT
 NSPR_CONFIGURE_OPTS += --disable-debug --enable-optimize
+endif
+ifdef USE_X32
+NSPR_CONFIGURE_OPTS += --enable-x32
 endif
 ifdef USE_64
 NSPR_CONFIGURE_OPTS += --enable-64bit
@@ -69,6 +78,9 @@ NSPR_CONFIGURE_OPTS += --enable-win32-target=WIN95
 endif
 ifdef USE_DEBUG_RTL
 NSPR_CONFIGURE_OPTS += --enable-debug-rtl
+endif
+ifdef USE_STATIC_RTL
+NSPR_CONFIGURE_OPTS += --enable-static-rtl
 endif
 ifdef NS_USE_GCC
 NSPR_COMPILERS = CC=gcc CXX=g++
